@@ -10,10 +10,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.provider.Settings;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -146,14 +148,46 @@ public final class TvActivity extends Activity {
 
     private void installDownload(long downloadId) {
         DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+
+        // Confirm the download completed successfully
+        DownloadManager.Query q = new DownloadManager.Query().setFilterById(downloadId);
+        try (Cursor c = dm.query(q)) {
+            if (c == null || !c.moveToFirst()) {
+                Toast.makeText(this, "Download not found. Please try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            if (status != DownloadManager.STATUS_SUCCESSFUL) {
+                int reason = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                Toast.makeText(this, "Download failed (error " + reason + "). Please try again.", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+
+        // On Android 8+, the user must grant "Install unknown apps" for this app
+        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+            new AlertDialog.Builder(this)
+                .setTitle("Permission needed")
+                .setMessage("To install updates, allow Strand TV to install apps. Tap Settings, enable 'Allow from this source', then start the update again.")
+                .setPositiveButton("Open Settings", (d, w) -> {
+                    Intent si = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:" + getPackageName()));
+                    si.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(si);
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+            return;
+        }
+
         Uri apk = dm.getUriForDownloadedFile(downloadId);
         if (apk == null) {
-            Toast.makeText(this, "Download failed. Please try again.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Downloaded file not found. Please try again.", Toast.LENGTH_LONG).show();
             return;
         }
         Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE)
             .setData(apk)
-            .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
         try { startActivity(intent); }
         catch (ActivityNotFoundException e) {
