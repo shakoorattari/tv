@@ -10,6 +10,8 @@ const StrandPlayer = (() => {
     prev: icon('M6 5h2.5v14H6zm13 .5v13L9.5 12z'),
     next: icon('M15.5 5H18v14h-2.5zM5 5.5v13l9.5-6.5z'),
     close: icon('M6.4 5 5 6.4l5.6 5.6L5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z'),
+    repeat: icon('M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z'),
+    repeatOne: icon('M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z'),
   };
   const fmt = s => {
     s = Math.max(0, Math.floor(s || 0));
@@ -20,6 +22,8 @@ const StrandPlayer = (() => {
   const pref = {
     get: () => { try { return localStorage.getItem('strand.captions') === 'on'; } catch { return false; } },
     set: on => { try { localStorage.setItem('strand.captions', on ? 'on' : 'off'); } catch {} },
+    repeat: () => { try { return localStorage.getItem('strand.repeat') || 'off'; } catch { return 'off'; } },
+    setRepeat: mode => { try { localStorage.setItem('strand.repeat', mode); } catch {} },
   };
 
   let api;
@@ -147,7 +151,7 @@ const StrandPlayer = (() => {
   const adapters = {youtube, file, frame};
   let session = null;
 
-  function create(items, start, label, onClose) {
+  function create(items, all, start, label, onClose) {
     const root = document.createElement('div');
     root.id = 'fs-player';
     root.className = 'sp';
@@ -159,11 +163,12 @@ const StrandPlayer = (() => {
       '<img class="sp-poster" alt=""><div class="sp-stage"></div><div class="sp-spinner" aria-hidden="true"></div>' +
       '<div class="sp-chrome"><button class="sp-btn sp-close" aria-label="Close player">' + icons.close + '</button>' +
       '<div class="sp-bottom"><div class="eyebrow sp-meta"></div><h2 class="sp-title"></h2>' +
+      '<div class="sp-timeline"><span class="sp-time">0:00</span><div class="sp-seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0">' +
+      '<div class="sp-seek-track"><div class="sp-seek-fill"></div></div></div><span class="sp-duration">0:00</span></div>' +
       '<div class="sp-controls"><button class="sp-btn sp-prev" aria-label="Previous video">' + icons.prev + '</button>' +
       '<button class="sp-btn sp-play" aria-label="Play">' + icons.play + '</button>' +
-      '<button class="sp-btn sp-next" aria-label="Next video">' + icons.next + '</button>' +
-      '<span class="sp-time">0:00</span><div class="sp-seek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0">' +
-      '<div class="sp-seek-track"><div class="sp-seek-fill"></div></div></div><span class="sp-duration">0:00</span>' +
+      '<button class="sp-btn sp-next" aria-label="Next video">' + icons.next + '</button><span class="sp-gap"></span>' +
+      '<button class="sp-btn sp-repeat"></button>' +
       '<button class="sp-btn sp-cc" aria-label="Captions" aria-pressed="false"><span>CC</span></button></div>' +
       '<div class="sp-queue" aria-label="Videos in this list"></div></div></div>' +
       '<section class="sp-panel" hidden><img class="sp-panel-art" alt=""><div class="sp-panel-body">' +
@@ -174,28 +179,20 @@ const StrandPlayer = (() => {
     const ui = {
       poster: q('.sp-poster'), stage: q('.sp-stage'), chrome: q('.sp-chrome'), close: q('.sp-close'), meta: q('.sp-meta'),
       title: q('.sp-title'), prev: q('.sp-prev'), play: q('.sp-play'), next: q('.sp-next'), time: q('.sp-time'),
-      seek: q('.sp-seek'), fill: q('.sp-seek-fill'), duration: q('.sp-duration'), cc: q('.sp-cc'), queue: q('.sp-queue'),
+      seek: q('.sp-seek'), fill: q('.sp-seek-fill'), duration: q('.sp-duration'), cc: q('.sp-cc'), repeat: q('.sp-repeat'),
+      queue: q('.sp-queue'),
       panel: q('.sp-panel'), panelArt: q('.sp-panel-art'), kicker: q('.sp-kicker'), panelTitle: q('.sp-panel-title'),
       panelText: q('.sp-panel-text'), count: q('.sp-count'), countBar: q('.sp-count-bar div'), countText: q('.sp-count-text'),
       actions: q('.sp-actions'),
     };
-    const cards = items.map((item, i) => {
-      const card = document.createElement('button');
-      card.className = 'sp-card';
-      card.dataset.index = i;
-      const img = document.createElement('img');
-      img.alt = '';
-      img.loading = 'lazy';
-      img.src = item.poster;
-      const name = document.createElement('span');
-      name.textContent = item.title;
-      card.append(img, name);
-      return card;
-    });
-    ui.queue.append(...cards);
-
-    let index = start, adapter = null, started = false, uiOn = false, disposed = false, pendingSeek = null, held = null;
-    let captions = pref.get(), pointer = 'mouse', generation = 0;
+    // "Category" repeats the list the viewer opened; "All titles" swaps the queue for the whole library.
+    const lists = {list: items, all};
+    const sameLists = all.length === items.length && all.every((v, i) => v.id === items[i].id);
+    const modes = sameLists ? ['off', 'one', 'all'] : ['off', 'one', 'list', 'all'];
+    let repeat = modes.includes(pref.repeat()) ? pref.repeat() : sameLists && pref.repeat() === 'list' ? 'all' : 'off';
+    let queue = lists[repeat === 'all' ? 'all' : 'list'], cards = [], item = items[start];
+    let index = queue.findIndex(v => v.id === item.id), adapter = null, started = false, uiOn = false, disposed = false;
+    let pendingSeek = null, held = null, captions = pref.get(), pointer = 'mouse', generation = 0;
     const timers = {};
     const state = () => root.dataset.state;
     const setState = s => { root.dataset.state = s; };
@@ -208,14 +205,64 @@ const StrandPlayer = (() => {
       adapter = null;
     }
 
+    const wraps = () => repeat === 'list' || repeat === 'all';
+
     function nextPlayable(from) {
-      for (let i = from + 1; i < items.length; i++) if (kindOf(items[i]) !== 'none') return i;
+      for (let i = from + 1; i < queue.length; i++) if (kindOf(queue[i]) !== 'none') return i;
+      if (wraps()) for (let i = 0; i <= from && i < queue.length; i++) if (kindOf(queue[i]) !== 'none') return i;
       return -1;
+    }
+
+    function previousPlayable(from) {
+      for (let i = from - 1; i >= 0; i--) if (kindOf(queue[i]) !== 'none') return i;
+      if (wraps()) for (let i = queue.length - 1; i > from; i--) if (kindOf(queue[i]) !== 'none') return i;
+      return -1;
+    }
+
+    function useList(name) {
+      queue = lists[name];
+      index = queue.findIndex(v => v.id === item.id);
+      cards = queue.map((entry, i) => {
+        const card = document.createElement('button');
+        card.className = 'sp-card';
+        card.dataset.index = i;
+        const img = document.createElement('img');
+        img.alt = '';
+        img.loading = 'lazy';
+        img.src = entry.poster;
+        const name = document.createElement('span');
+        name.textContent = entry.title;
+        card.append(img, name);
+        return card;
+      });
+      ui.queue.replaceChildren(...cards);
+    }
+
+    // Shows where the current video sits in the queue; it can be outside it after switching away from "All titles".
+    function mark() {
+      ui.meta.textContent = (queue === lists.all ? 'All titles' : label) + (index < 0 ? '' : ' · ' + (index + 1) + ' of ' + queue.length);
+      ui.next.disabled = nextPlayable(index) < 0;
+      cards.forEach((card, n) => card.toggleAttribute('aria-current', n === index));
+      const card = cards[index];
+      if (card) ui.queue.scrollLeft = card.offsetLeft - (ui.queue.clientWidth - card.offsetWidth) / 2;
+    }
+
+    function setRepeat(mode) {
+      repeat = mode;
+      const name = mode === 'all' ? 'all' : 'list';
+      if (lists[name] !== queue) useList(name);
+      mark();
+      const text = {off: 'Repeat off', one: 'This video', list: label, all: 'All titles'}[mode];
+      ui.repeat.innerHTML = (mode === 'one' ? icons.repeatOne : icons.repeat) + '<span></span>';
+      ui.repeat.lastChild.textContent = text;
+      ui.repeat.setAttribute('aria-label', mode === 'off' ? 'Repeat off' : 'Repeat: ' + text);
+      ui.repeat.setAttribute('aria-pressed', String(mode !== 'off'));
     }
 
     function load(i) {
       index = i;
-      const item = items[i], kind = kindOf(item);
+      item = queue[i];
+      const kind = kindOf(item);
       clearInterval(timers.count);
       clearTimeout(timers.watch);
       pendingSeek = held = null;
@@ -226,12 +273,8 @@ const StrandPlayer = (() => {
       root.dataset.kind = kind;
       ui.poster.src = item.poster;
       ui.title.textContent = item.title;
-      ui.meta.textContent = label + ' · ' + (i + 1) + ' of ' + items.length;
-      ui.next.disabled = nextPlayable(i) < 0;
       setPlayIcon(false);
-      cards.forEach((card, n) => card.toggleAttribute('aria-current', n === i));
-      const card = cards[i];
-      ui.queue.scrollLeft = card.offsetLeft - (ui.queue.clientWidth - card.offsetWidth) / 2;
+      mark();
       if (kind === 'none') {
         drop();
         return message(item);
@@ -243,6 +286,16 @@ const StrandPlayer = (() => {
       }
       adapter.load(item);
       adapter.captions(captions);
+      timers.watch = setTimeout(() => { if (!started && state() === 'loading') blocked(); }, 12000);
+    }
+
+    // Treated like a fresh start so YouTube's end screen stays hidden until playback resumes.
+    function replay() {
+      if (item.list && index >= 0) return load(index);
+      started = false;
+      setState('loading');
+      adapter.seek(0);
+      adapter.play();
       timers.watch = setTimeout(() => { if (!started && state() === 'loading') blocked(); }, 12000);
     }
 
@@ -276,15 +329,16 @@ const StrandPlayer = (() => {
     }
 
     function ended() {
+      const next = nextPlayable(index);
+      if (repeat === 'one' || next === index) return replay();
       setState('ended');
       setPlayIcon(false);
-      const next = nextPlayable(index);
       if (next < 0) {
-        return panel({art: items[index].poster, kicker: 'That’s everything in this list', title: label,
+        return panel({art: item.poster, kicker: 'That’s everything in this list', title: queue === lists.all ? 'All titles' : label,
           actions: [['Start list again', () => load(Math.max(0, nextPlayable(-1)))], ['Close', close]]});
       }
-      const item = items[next];
-      panel({art: item.poster, kicker: 'Up next', title: item.title, text: item.description, countdown: next,
+      const upcoming = queue[next];
+      panel({art: upcoming.poster, kicker: 'Up next', title: upcoming.title, text: upcoming.description, countdown: next,
         actions: [['▶  Play now', () => load(next)], ['Cancel', cancel]]});
     }
 
@@ -292,7 +346,8 @@ const StrandPlayer = (() => {
       started = false;
       clearTimeout(timers.watch);
       setState('ended');
-      const item = items[index], next = nextPlayable(index);
+      // With repeat on, a lone broken video would otherwise retry itself forever.
+      const found = nextPlayable(index), next = found === index ? -1 : found;
       const text = code === 101 || code === 150 ? 'The owner doesn’t allow this video to be played outside YouTube.'
         : code === 100 ? 'This video is private or no longer available.'
         : code === 'offline' ? 'YouTube couldn’t be reached. Check the internet connection.'
@@ -301,12 +356,12 @@ const StrandPlayer = (() => {
         actions: next < 0 ? [['Try again', () => load(index)], ['Close', close]] : [['Play next', () => load(next)], ['Close', close]]});
     }
 
-    function message(item) {
+    function message(entry) {
       setState('ended');
-      const next = nextPlayable(index), actions = [['Open link ↗', item.url]];
-      if (next >= 0) actions.push(['Play next', () => load(next)]);
+      const next = nextPlayable(index), actions = [['Open link ↗', entry.url]];
+      if (next >= 0 && next !== index) actions.push(['Play next', () => load(next)]);
       actions.push(['Close', close]);
-      panel({art: item.poster, kicker: 'Opens on the provider’s website', title: item.title, text: item.description, actions});
+      panel({art: entry.poster, kicker: 'Opens on the provider’s website', title: entry.title, text: entry.description, actions});
     }
 
     function panel({art, kicker, title, text = '', countdown = null, actions}) {
@@ -412,13 +467,15 @@ const StrandPlayer = (() => {
 
     function prev() {
       if (started && adapter.time() > 5) return seekTo(0);
-      for (let i = index - 1; i >= 0; i--) if (kindOf(items[i]) !== 'none') return load(i);
+      const i = previousPlayable(index);
+      if (i >= 0) return load(i);
       if (started) seekTo(0);
     }
 
     function next() {
       const i = nextPlayable(index);
-      if (i >= 0) load(i);
+      if (i === index) replay();
+      else if (i >= 0) load(i);
     }
 
     function setCaptions(on) {
@@ -450,6 +507,7 @@ const StrandPlayer = (() => {
       scheduleHide();
       if (active === ui.seek && horizontal) { stop(); return seekBy(k === 'ArrowLeft' ? -SEEK_STEP : SEEK_STEP); }
       if (active === ui.seek && (k === 'Enter' || k === ' ')) { stop(); return togglePlay(); }
+      if (active === ui.seek && k === 'ArrowDown') { stop(); return ui.play.focus({preventScroll: true}); }
       if ((active === root || !root.contains(active)) && (arrow || k === 'Enter')) { stop(); return ui.play.focus({preventScroll: true}); }
       if (k === ' ' && active.tagName !== 'BUTTON') { stop(); togglePlay(); }
     }
@@ -468,6 +526,11 @@ const StrandPlayer = (() => {
     ui.prev.onclick = prev;
     ui.next.onclick = next;
     ui.cc.onclick = () => setCaptions(!captions);
+    ui.repeat.onclick = () => {
+      const mode = modes[(modes.indexOf(repeat) + 1) % modes.length];
+      pref.setRepeat(mode);
+      setRepeat(mode);
+    };
     ui.queue.onclick = e => {
       const card = e.target.closest('.sp-card');
       if (!card) return;
@@ -508,11 +571,13 @@ const StrandPlayer = (() => {
       background.forEach(n => { n.inert = false; });
       document.documentElement.classList.remove('sp-open');
       if (session === self) session = null;
-      onClose?.(items[index].id);
+      onClose?.(item.id);
     }
 
     const self = {close};
     ui.cc.setAttribute('aria-pressed', String(captions));
+    useList(repeat === 'all' ? 'all' : 'list');
+    setRepeat(repeat);
     background.forEach(n => { n.inert = true; });
     document.documentElement.classList.add('sp-open');
     document.body.append(root);
@@ -525,9 +590,9 @@ const StrandPlayer = (() => {
   }
 
   return {
-    open({items, index = 0, label = '', onClose}) {
+    open({items, all = items, index = 0, label = '', onClose}) {
       session?.close();
-      session = create(items, index, label, onClose);
+      session = create(items, all, index, label, onClose);
     },
     close: () => session?.close(),
     isOpen: () => !!session,
