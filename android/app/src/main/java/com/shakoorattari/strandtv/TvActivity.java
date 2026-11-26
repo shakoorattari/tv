@@ -1,5 +1,6 @@
 package com.shakoorattari.strandtv;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
@@ -115,6 +116,7 @@ public final class TvActivity extends Activity {
             .show();
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private void startDownload() {
         DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
         DownloadManager.Request req = new DownloadManager.Request(Uri.parse(APK_URL))
