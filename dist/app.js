@@ -22,6 +22,7 @@ function deviceLibrary(){
 }
 let library=window.STRAND_FIREBASE?seed:deviceLibrary(), profiles=read(pk,{active:'guest',items:[{id:'guest',name:'Guest'}]});
 let filter='',user=null,isAdmin=false,cloud=null,cloudError='',ready=!window.STRAND_FIREBASE,dialogOrigin=null;
+const isAndroid=navigator.userAgent.includes('StrandTVAndroid/');
 const downloadLink = document.querySelector('.apk-download');
 if (downloadLink && navigator.userAgent.includes('StrandTVAndroid/')) downloadLink.hidden = true;
 const main=$('#main'),modal=$('#modal'),body=$('#body');
@@ -55,8 +56,34 @@ function render(){
  '<div class="bar"><h2>'+ (page==='home'?'Explore the collection':'Browse by category')+'</h2><span>'+videos.length+' titles</span></div><div class="filters">'+['',...library.categories].map(c=>'<button aria-pressed="'+(filter===c)+'" class="'+(filter===c?'active':'')+'" data-filter="'+esc(c)+'">'+esc(c||'All titles')+'</button>').join('')+'</div><div class="grid">'+videos.map(v=>'<button class="card" data-play="'+esc(v.id)+'"><div class="thumb"><img alt="" src="'+cover(v)+'"><span class="tag">'+esc(source(v.url).name)+'</span></div><strong>'+esc(v.title)+'</strong><small>'+esc(v.category)+'</small></button>').join('')+'</div>'+(!videos.length?'<p class="empty">No videos in this collection yet.</p>':'');
 }
 function player(id){const v=library.videos.find(v=>v.id===id),s=source(v.url),url=esc(v.url);
- show(v.title,(s.media?'<video controls playsinline autoplay src="'+esc(s.media)+'"></video>':s.embed?'<iframe allow="autoplay; fullscreen; encrypted-media" allowfullscreen title="'+esc(v.title)+'" referrerpolicy="strict-origin-when-cross-origin" src="'+esc(s.embed)+'"></iframe>':'<p>This video opens on the provider’s website.</p>')+'<p class="muted">'+esc(v.description)+'</p><a class="button" target="_blank" rel="noopener noreferrer" href="'+url+'">Open original ↗</a><p id="mediaError" role="status"></p>');
+ show(v.title,(s.media?'<video controls playsinline autoplay src="'+esc(s.media)+'"></video>':s.embed?'<iframe allow="autoplay; fullscreen; encrypted-media" allowfullscreen title="'+esc(v.title)+'" referrerpolicy="strict-origin-when-cross-origin" src="'+esc(s.embed)+'"></iframe>':'<p>This video opens on the provider&rsquo;s website.</p>')+'<p class="muted">'+esc(v.description)+'</p><a class="button" target="_blank" rel="noopener noreferrer" href="'+url+'">Open original ↗</a><p id="mediaError" role="status"></p>');
  if(body.querySelector('video'))body.querySelector('video').onerror=()=>$('#mediaError').textContent='This browser could not play the video. Try Open original.';}
+function playerFullscreen(id){
+ const v=library.videos.find(v=>v.id===id);if(!v)return;
+ const s=source(v.url);
+ document.getElementById('fs-player')?.remove();
+ const related=library.videos.filter(x=>x.id!==id);
+ const mediaHtml=s.media?'<video controls playsinline autoplay src="'+esc(s.media)+'"></video>':s.embed?'<iframe allow="autoplay; fullscreen; encrypted-media" allowfullscreen title="'+esc(v.title)+'" referrerpolicy="strict-origin-when-cross-origin" src="'+esc(s.embed)+'"></iframe>':'<p class="fs-noplay">This video opens on the provider&rsquo;s website.</p>';
+ const cards=related.map(x=>'<button class="fs-card" data-play="'+esc(x.id)+'"><img alt="" src="'+cover(x)+'"><span>'+esc(x.title)+'</span></button>').join('');
+ const el=document.createElement('div');el.id='fs-player';
+ el.innerHTML='<div class="fs-media">'+mediaHtml+'</div><div class="fs-tray" hidden><div class="fs-row">'+cards+'</div></div><button class="fs-close" aria-label="Close">✕</button>';
+ document.body.appendChild(el);
+ const tray=el.querySelector('.fs-tray');let timer;
+ function showTray(){tray.hidden=false;clearTimeout(timer);timer=setTimeout(()=>{tray.hidden=true;},5000);}
+ function hideTray(){clearTimeout(timer);tray.hidden=true;el.querySelector('iframe,video')?.focus();}
+ function close(){clearTimeout(timer);document.removeEventListener('keydown',onKey);el.remove();}
+ function onKey(e){
+  if(e.key==='Escape'){close();return;}
+  if(['ArrowDown','ArrowLeft','ArrowRight','ArrowUp'].includes(e.key)){
+   if(!e.target.closest('#fs-player .fs-tray')){showTray();if(e.key==='ArrowDown'){e.preventDefault();el.querySelector('.fs-card')?.focus();}}
+   else if(e.key==='ArrowUp'){hideTray();}}}
+ document.addEventListener('keydown',onKey);
+ el.addEventListener('pointerup',e=>{
+  if(e.target.closest('.fs-close')){close();return;}
+  const card=e.target.closest('[data-play]');if(card){playerFullscreen(card.dataset.play);return;}
+  if(!e.target.closest('.fs-tray'))showTray();});
+ el.querySelector('.fs-media iframe,.fs-media video')?.focus();
+ if(s.media){const vid=el.querySelector('video');if(vid)vid.onerror=()=>{el.querySelector('.fs-media').innerHTML='<p class="fs-noplay">Could not play this video.</p>';};} }
 function row(name,type,id){return '<div class="row"><span>'+esc(name)+'</span><button data-edit="'+type+'" data-id="'+esc(id)+'">Edit</button><button data-remove="'+type+'" data-id="'+esc(id)+'">Remove</button></div>'}
 function studio(){
  const local=!window.STRAND_FIREBASE,can=local||isAdmin;
@@ -86,7 +113,7 @@ function edit(type,id){
  await changeLibrary(l=>{if(type==='category'){if(id&&!l.categories.includes(id))throw Error('Category changed. Reopen Studio.');if(data.name!==id&&l.categories.includes(data.name))throw Error('This category already exists.');if(id){l.categories[l.categories.indexOf(id)]=data.name;l.videos.forEach(v=>{if(v.category===id)v.category=data.name})}else l.categories.push(data.name)}
  else{if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');const v={...data,id:id||crypto.randomUUID()};if(id){const n=l.videos.findIndex(v=>v.id===id);if(n<0)throw Error('This video was removed.');l.videos[n]=v}else l.videos.push(v)}});filter='';});}
 function remove(type,id){show('Remove '+type,'<form><p>Remove “'+esc(type==='video'?library.videos.find(v=>v.id===id)?.title:type==='profile'?profiles.items.find(p=>p.id===id)?.name:id)+'”?</p><div class="actions"><button>Remove</button></div><p class="err"></p></form>');submit(async()=>{if(type==='profile'){changeProfiles(p=>{if(p.items.length===1)throw Error('Keep at least one viewer profile.');p.items=p.items.filter(v=>v.id!==id);if(p.active===id)p.active=p.items[0].id});return}await changeLibrary(l=>{if(type==='video')l.videos=l.videos.filter(v=>v.id!==id);else{if(l.videos.some(v=>v.category===id))throw Error('Move or remove videos in this category first.');l.categories=l.categories.filter(c=>c!==id)}});filter='';});}
-main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if('play'in d)player(d.play);if('filter'in d){filter=d.filter;render();[...document.querySelectorAll('[data-filter]')].find(b=>b.dataset.filter===filter)?.focus()}if(d.edit)edit(d.edit,d.id);if(d.remove)remove(d.remove,d.id)};
+main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if('play'in d)(isAndroid?playerFullscreen:player)(d.play);if('filter'in d){filter=d.filter;render();[...document.querySelectorAll('[data-filter]')].find(b=>b.dataset.filter===filter)?.focus()}if(d.edit)edit(d.edit,d.id);if(d.remove)remove(d.remove,d.id)};
 $('#profile').onclick=()=>{show('Choose viewer',profiles.items.map(p=>'<div class="row"><span>'+esc(p.name)+'</span><button data-p="'+esc(p.id)+'">'+(p.id===profiles.active?'Selected':'Choose')+'</button></div>').join(''));body.querySelectorAll('button').forEach(b=>b.onclick=()=>{changeProfiles(p=>p.active=b.dataset.p);render();modal.close()})};
 window.onhashchange=()=>{filter='';render();document.querySelector('nav .active')?.focus()};window.addEventListener('storage',()=>{if(!window.STRAND_FIREBASE)library=deviceLibrary();profiles=read(pk,profiles);render()});
 document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)||['INPUT','SELECT','VIDEO','IFRAME','TEXTAREA'].includes(document.activeElement.tagName))return;
