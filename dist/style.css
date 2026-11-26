@@ -61,6 +61,22 @@ html.sp-open{overflow:hidden}
 @keyframes sp-count{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .sp-count-text{margin:8px 0 0;font-size:14px;color:#bcd8c1}
 .sp-actions{margin-top:20px}
+.sp .sp-btn[hidden]{display:none}
+@media (orientation:portrait){
+.sp,.sp.ui-on{cursor:auto}
+.sp-poster,.sp-stage{bottom:auto;height:auto;aspect-ratio:16/9}
+.sp-spinner{top:28.125vw}
+.sp .sp-chrome{opacity:1;visibility:visible}
+.sp-chrome::before{display:none}
+.sp .sp-bottom{top:56.25vw;overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;padding:16px 16px 24px;background:#0c1417}
+.sp-title{white-space:normal;font-size:20px}
+.sp-controls{flex-wrap:wrap;row-gap:10px}
+.sp-repeat span{max-width:10ch}
+.sp-queue{flex-direction:column;overflow:visible;margin:20px 0 0;padding:0}
+.sp .sp-card{display:flex;align-items:flex-start;gap:12px;flex:none;width:100%}
+.sp-card img{width:44%;flex:none}
+.sp-card span{margin-top:2px;white-space:normal;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+}
 @media (max-height:480px){.sp .sp-card{flex-basis:120px}.sp-title{font-size:18px;margin-bottom:8px}.sp-bottom{padding-bottom:10px}}
 @media (prefers-reduced-motion:reduce){.sp-chrome,.sp-poster,.sp-stage{transition:none}}
 .cover-preview{display:block;width:min(100%,320px);aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#213033}.lookup-status{font-size:.9rem;color:#bcd8c1;margin:.5rem 0 1rem}textarea{resize:vertical;font:inherit;width:100%;border:1px solid #445452;border-radius:9px;padding:9px 15px;background:#1d292c;color:inherit}.hero p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
@@ -83,3 +99,10 @@ html.sp-open{overflow:hidden}
 .whats-new h3:first-child{margin-top:0}
 footer .version-link{color:#c7d6d2}
 footer .version-link:hover{color:#edf4ed}
+.version-card .primary{justify-self:start;margin-top:8px}
+.app-banner{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;padding:14px 16px;border-radius:14px;background:#1b2b2e;border:1px solid #3a4d4b;box-shadow:0 12px 32px #0009}
+.app-banner-text{flex:1 1 240px;display:grid;gap:2px}
+.app-banner-actions{display:flex;gap:8px;margin-left:auto}
+.app-banner span{font-size:14px;color:#bcd0c9}
+.install-steps{margin:0 0 12px;padding-left:22px;line-height:1.6}
+.install-steps li{margin:4px 0}

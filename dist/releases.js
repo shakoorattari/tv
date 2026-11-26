@@ -31,6 +31,8 @@ const Releases = (() => {
     const web = card('Web app', running(log).web, window.STRAND_BUILD ? 'Build ' + window.STRAND_BUILD.slice(0, 7) : 'Local build');
     const latest = log.android[0].version, app = installedApp();
     if (!app) {
+      if (AppInstall.android) return web + card('Android app', latest, 'Latest release', '<button class="primary" id="getApp">Get the app</button>');
+      if (AppInstall.apple) return web + card('Android app', latest, 'For Android phones, tablets and TVs. On iPhone and iPad, keep using this website.');
       return web + card('Android app', latest, 'Latest release', '<a class="button" href="./strand-tv.apk" download>Download for Android TV</a>');
     }
     const outdated = !app.name || isNewer(latest, app.name);
@@ -56,6 +58,7 @@ const Releases = (() => {
     const now = running(log);
     target.innerHTML = '<div class="versions">' + versions(log) + '</div><div class="bar"><h2>What’s new</h2></div><div class="changelog">' +
       PLATFORMS.map(([key, label]) => '<section><h3>' + label + '</h3>' + log[key].map(r => release(r, now[key])).join('') + '</section>').join('') + '</div>';
+    document.getElementById('getApp')?.addEventListener('click', AppInstall.get);
   }
 
   // After an update, list what changed since this device last opened Strand TV; the first visit only records versions.

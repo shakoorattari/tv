@@ -11,6 +11,8 @@ const StrandPlayer = (() => {
     next: icon('M15.5 5H18v14h-2.5zM5 5.5v13l9.5-6.5z'),
     close: icon('M6.4 5 5 6.4l5.6 5.6L5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z'),
     repeat: icon('M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z'),
+    full: icon('M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z'),
+    exitFull: icon('M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z'),
     repeatOne: icon('M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z'),
   };
   const fmt = s => {
@@ -169,7 +171,8 @@ const StrandPlayer = (() => {
       '<button class="sp-btn sp-play" aria-label="Play">' + icons.play + '</button>' +
       '<button class="sp-btn sp-next" aria-label="Next video">' + icons.next + '</button><span class="sp-gap"></span>' +
       '<button class="sp-btn sp-repeat"></button>' +
-      '<button class="sp-btn sp-cc" aria-label="Captions" aria-pressed="false"><span>CC</span></button></div>' +
+      '<button class="sp-btn sp-cc" aria-label="Captions" aria-pressed="false"><span>CC</span></button>' +
+      '<button class="sp-btn sp-full"></button></div>' +
       '<div class="sp-queue" aria-label="Videos in this list"></div></div></div>' +
       '<section class="sp-panel" hidden><img class="sp-panel-art" alt=""><div class="sp-panel-body">' +
       '<div class="eyebrow sp-kicker"></div><h2 class="sp-panel-title"></h2><p class="sp-panel-text"></p>' +
@@ -180,6 +183,7 @@ const StrandPlayer = (() => {
       poster: q('.sp-poster'), stage: q('.sp-stage'), chrome: q('.sp-chrome'), close: q('.sp-close'), meta: q('.sp-meta'),
       title: q('.sp-title'), prev: q('.sp-prev'), play: q('.sp-play'), next: q('.sp-next'), time: q('.sp-time'),
       seek: q('.sp-seek'), fill: q('.sp-seek-fill'), duration: q('.sp-duration'), cc: q('.sp-cc'), repeat: q('.sp-repeat'),
+      full: q('.sp-full'),
       queue: q('.sp-queue'),
       panel: q('.sp-panel'), panelArt: q('.sp-panel-art'), kicker: q('.sp-kicker'), panelTitle: q('.sp-panel-title'),
       panelText: q('.sp-panel-text'), count: q('.sp-count'), countBar: q('.sp-count-bar div'), countText: q('.sp-count-text'),
@@ -194,6 +198,10 @@ const StrandPlayer = (() => {
     let index = queue.findIndex(v => v.id === item.id), adapter = null, started = false, uiOn = false, disposed = false;
     let pendingSeek = null, held = null, captions = pref.get(), pointer = 'mouse', generation = 0;
     const timers = {};
+    // Portrait shows the video on top with controls and Up next below, always visible, like YouTube.
+    const tall = matchMedia('(orientation: portrait)');
+    const app = window.StrandApp;
+    let forcedLandscape = false;
     const state = () => root.dataset.state;
     const setState = s => { root.dataset.state = s; };
     const background = [...document.body.children].filter(n => !n.inert && n.id !== 'status');
@@ -268,7 +276,7 @@ const StrandPlayer = (() => {
       pendingSeek = held = null;
       started = false;
       ui.panel.hidden = true;
-      hideUi();
+      rest();
       setState('loading');
       root.dataset.kind = kind;
       ui.poster.src = item.poster;
@@ -366,7 +374,7 @@ const StrandPlayer = (() => {
 
     function panel({art, kicker, title, text = '', countdown = null, actions}) {
       clearInterval(timers.count);
-      hideUi();
+      hideUi(true);
       ui.panelArt.src = art;
       ui.kicker.textContent = kicker;
       ui.panelTitle.textContent = title;
@@ -417,7 +425,8 @@ const StrandPlayer = (() => {
       scheduleHide();
     }
 
-    function hideUi() {
+    function hideUi(force) {
+      if (tall.matches && !force) return;
       clearTimeout(timers.hide);
       if (root.contains(document.activeElement)) root.focus({preventScroll: true});
       uiOn = false;
@@ -427,7 +436,37 @@ const StrandPlayer = (() => {
 
     function scheduleHide() {
       clearTimeout(timers.hide);
-      if (uiOn && state() === 'playing') timers.hide = setTimeout(hideUi, HIDE_AFTER);
+      if (uiOn && state() === 'playing' && !tall.matches) timers.hide = setTimeout(hideUi, HIDE_AFTER);
+    }
+
+    function rest() {
+      if (tall.matches) showUi(); else hideUi();
+    }
+
+    function fullScreen() {
+      return app ? forcedLandscape : !!document.fullscreenElement;
+    }
+
+    function updateFull() {
+      // In the app the button rotates the phone; in a browser it uses the Fullscreen API.
+      ui.full.hidden = app ? !(tall.matches || forcedLandscape) : !document.fullscreenEnabled;
+      ui.full.innerHTML = fullScreen() ? icons.exitFull : icons.full;
+      ui.full.setAttribute('aria-label', fullScreen() ? 'Exit full screen' : 'Full screen');
+    }
+
+    function toggleFull() {
+      if (app) {
+        forcedLandscape = !forcedLandscape;
+        app.setLandscape(forcedLandscape);
+        return updateFull();
+      }
+      if (document.fullscreenElement) return void document.exitFullscreen().catch(() => {});
+      root.requestFullscreen?.().then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+    }
+
+    function turned() {
+      updateFull();
+      if (ui.panel.hidden) showUi();
     }
 
     function tick() {
@@ -516,7 +555,7 @@ const StrandPlayer = (() => {
     root.addEventListener('pointermove', e => { if (e.pointerType === 'mouse' && (e.movementX || e.movementY)) showUi(); });
     root.addEventListener('click', e => {
       if (e.target.closest('button, a, .sp-seek, .sp-queue, .sp-panel')) return;
-      if (pointer === 'mouse') { togglePlay(); return showUi(); }
+      if (pointer === 'mouse' || tall.matches) { togglePlay(); return showUi(); }
       // YouTube's touch embed draws its own ▶ while paused, so a tap there should resume.
       if (state() === 'paused' || state() === 'blocked') return togglePlay();
       if (uiOn && state() === 'playing') hideUi(); else showUi();
@@ -526,6 +565,9 @@ const StrandPlayer = (() => {
     ui.prev.onclick = prev;
     ui.next.onclick = next;
     ui.cc.onclick = () => setCaptions(!captions);
+    ui.full.onclick = toggleFull;
+    tall.addEventListener('change', turned);
+    document.addEventListener('fullscreenchange', updateFull);
     ui.repeat.onclick = () => {
       const mode = modes[(modes.indexOf(repeat) + 1) % modes.length];
       pref.setRepeat(mode);
@@ -566,6 +608,10 @@ const StrandPlayer = (() => {
       clearTimeout(timers.watch);
       clearTimeout(timers.seek);
       window.removeEventListener('keydown', onKey, true);
+      tall.removeEventListener('change', turned);
+      document.removeEventListener('fullscreenchange', updateFull);
+      if (forcedLandscape) app.setLandscape(false);
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       adapter?.destroy();
       root.remove();
       background.forEach(n => { n.inert = false; });
@@ -578,6 +624,7 @@ const StrandPlayer = (() => {
     ui.cc.setAttribute('aria-pressed', String(captions));
     useList(repeat === 'all' ? 'all' : 'list');
     setRepeat(repeat);
+    updateFull();
     background.forEach(n => { n.inert = true; });
     document.documentElement.classList.add('sp-open');
     document.body.append(root);

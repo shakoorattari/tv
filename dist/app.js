@@ -24,7 +24,7 @@ let library=window.STRAND_FIREBASE?seed:deviceLibrary(), profiles=read(pk,{activ
 let filter='',user=null,isAdmin=false,cloud=null,cloudError='',ready=!window.STRAND_FIREBASE,dialogOrigin=null;
 const isAndroid=navigator.userAgent.includes('StrandTVAndroid/');
 const downloadLink = document.querySelector('.apk-download');
-if (downloadLink && isAndroid) downloadLink.hidden = true;
+if (downloadLink && (isAndroid || AppInstall.apple)) downloadLink.hidden = true;
 const main=$('#main'),modal=$('#modal'),body=$('#body');
 function source(raw){
  const u=new URL(raw); if(u.protocol!=='https:'||u.username||u.password)throw Error('Enter an HTTPS link without credentials.');
@@ -121,5 +121,5 @@ document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp',
  const row=a.getBoundingClientRect(),same=horizontal&&opts.find(o=>{const r=o.n.getBoundingClientRect();return r.top<row.bottom&&r.bottom>row.top});
  const pick=same||opts[0];if(pick){e.preventDefault();pick.n.focus()}});
 render();
-Releases.footer();Releases.announce();
+Releases.footer();Releases.announce();AppInstall.banner();
 if(window.STRAND_FIREBASE)import('./firebase.js').then(m=>m.connect(window.STRAND_FIREBASE,seed,(state)=>{({user,isAdmin,ready,cloudError}=state);library=state.library;render()})).then(c=>{cloud=c;render()}).catch(()=>{cloudError='Firebase is unavailable. Showing the sample collection.';render()});
