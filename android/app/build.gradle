@@ -1,0 +1,19 @@
+plugins {
+    id 'com.android.application' version '8.7.3'
+}
+
+android {
+    namespace 'com.shakoorattari.strandtv'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.shakoorattari.strandtv'
+        minSdk 23
+        targetSdk 35
+        versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
+        versionName '1.0.' + versionCode
+    }
+    buildTypes {
+        debug { applicationIdSuffix '.preview' }
+    }
+}

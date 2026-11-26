@@ -22,6 +22,8 @@ function deviceLibrary(){
 }
 let library=window.STRAND_FIREBASE?seed:deviceLibrary(), profiles=read(pk,{active:'guest',items:[{id:'guest',name:'Guest'}]});
 let filter='',user=null,isAdmin=false,cloud=null,cloudError='',ready=!window.STRAND_FIREBASE,dialogOrigin=null;
+const downloadLink = document.querySelector('.apk-download');
+if (downloadLink && navigator.userAgent.includes('StrandTVAndroid/')) downloadLink.hidden = true;
 const main=$('#main'),modal=$('#modal'),body=$('#body');
 function source(raw){
  const u=new URL(raw); if(u.protocol!=='https:'||u.username||u.password)throw Error('Enter an HTTPS link without credentials.');

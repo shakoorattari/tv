@@ -1,2 +1,6 @@
 dist/server/
 dist/.openai/
+android/.gradle/
+android/**/build/
+android/local.properties
+.android-signing/
