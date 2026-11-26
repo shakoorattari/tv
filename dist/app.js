@@ -58,8 +58,8 @@ function render(){
 function play(id,origin){
  const visible=library.videos.filter(v=>!filter||v.category===filter);
  const list=visible.some(v=>v.id===id)?visible:[library.videos.find(v=>v.id===id),...visible];
- StrandPlayer.open({index:list.findIndex(v=>v.id===id),label:filter||'All titles',
-  items:list.map(v=>{const s=source(v.url);return {id:v.id,title:v.title,description:v.description,poster:cover(v),url:v.url,videoId:s.videoId,list:s.list,media:s.media,embed:s.embed}}),
+ const entry=v=>{const s=source(v.url);return {id:v.id,title:v.title,description:v.description,poster:cover(v),url:v.url,videoId:s.videoId,list:s.list,media:s.media,embed:s.embed}};
+ StrandPlayer.open({index:list.findIndex(v=>v.id===id),label:filter||'All titles',items:list.map(entry),all:library.videos.map(entry),
   onClose:last=>{const target=[...main.querySelectorAll('.grid [data-play]')].find(b=>b.dataset.play===last)||(origin?.isConnected?origin:main.querySelector('[data-play]'));
    if(!target)return;target.focus({preventScroll:true});target.scrollIntoView({block:'center'})}});
 }
@@ -114,6 +114,10 @@ document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp',
  const items=[...scope.querySelectorAll('a[href],button:not(:disabled),input,select,iframe,video,[role=slider]')].filter(n=>n.tabIndex>=0&&!n.closest('[inert]')&&n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden');
  const a=document.activeElement;if(!items.includes(a)){e.preventDefault();items[0]?.focus();return}
  const center=n=>{const r=n.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]},[x,y]=center(a),horizontal=['ArrowLeft','ArrowRight'].includes(e.key),sign=['ArrowLeft','ArrowUp'].includes(e.key)?-1:1;
- const opts=items.filter(n=>n!==a).map(n=>{const [i,j]=center(n),d=(horizontal?i-x:j-y)*sign,c=Math.abs(horizontal?j-y:i-x);return {n,d,c,score:d+4*c}}).filter(o=>o.d>2&&o.c<o.d*2).sort((a,b)=>a.score-b.score);if(opts.length){e.preventDefault();opts[0].n.focus()}});
+ // Cross-axis distance is measured to the target's edges so wide targets (the seek bar) count as straight ahead.
+ const opts=items.filter(n=>n!==a).map(n=>{const [i,j]=center(n),r=n.getBoundingClientRect(),d=(horizontal?i-x:j-y)*sign,c=horizontal?Math.max(0,r.top-y,y-r.bottom):Math.max(0,r.left-x,x-r.right);return {n,d,c,score:d+4*c}}).filter(o=>o.d>2&&o.c<o.d*2).sort((a,b)=>a.score-b.score);
+ // Left/Right stays on the same row when it can, even if something on the next row is closer.
+ const row=a.getBoundingClientRect(),same=horizontal&&opts.find(o=>{const r=o.n.getBoundingClientRect();return r.top<row.bottom&&r.bottom>row.top});
+ const pick=same||opts[0];if(pick){e.preventDefault();pick.n.focus()}});
 render();
 if(window.STRAND_FIREBASE)import('./firebase.js').then(m=>m.connect(window.STRAND_FIREBASE,seed,(state)=>{({user,isAdmin,ready,cloudError}=state);library=state.library;render()})).then(c=>{cloud=c;render()}).catch(()=>{cloudError='Firebase is unavailable. Showing the sample collection.';render()});
