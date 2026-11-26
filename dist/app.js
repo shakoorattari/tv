@@ -46,10 +46,11 @@ function notice(s){$('#status').textContent=s;setTimeout(()=>{if($('#status').te
 function show(title,html){if(!modal.open)dialogOrigin=document.activeElement;$('#modalTitle').textContent=title;body.innerHTML=html;if(!modal.open)modal.showModal();}
 $('#close').onclick=()=>modal.close();modal.onclose=()=>{body.replaceChildren();if(dialogOrigin?.isConnected)dialogOrigin.focus();else document.querySelector('nav .active')?.focus()};
 function render(){
- const page=['studio','library'].includes(location.hash.slice(1))?location.hash.slice(1):'home';
+ const page=['studio','library','about'].includes(location.hash.slice(1))?location.hash.slice(1):'home';
  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+page));
  const profile=profiles.items.find(p=>p.id===profiles.active)||profiles.items[0];$('#profile').textContent=(profile?.name||'G')[0].toUpperCase();$('#profile').title=profile?.name||'Guest';
  if(page==='studio')return studio();
+ if(page==='about')return Releases.page(main);
  const first=library.videos[0],videos=library.videos.filter(v=>!filter||v.category===filter);
  main.innerHTML=(page==='home'&&first?'<section class="hero" style="background-image:url('+cover(first)+')"><div><div class="eyebrow">◆ &nbsp; Featured film</div><h1>'+esc(first.title)+'</h1><p>'+esc(first.description)+'</p><button class="primary" data-play="'+esc(first.id)+'">▶ &nbsp; Watch now</button></div></section>':'<div class="page"><div class="eyebrow">Strand TV</div><h1>Video library</h1></div>')+
  (cloudError?'<p class="err">'+esc(cloudError)+'</p>':'')+
@@ -111,7 +112,7 @@ function watchForUpdates(){
 if(window.STRAND_BUILD)watchForUpdates();
 document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)||['INPUT','SELECT','VIDEO','IFRAME','TEXTAREA'].includes(document.activeElement.tagName))return;
  const scope=document.getElementById('fs-player')||(modal.open?modal:document);
- const items=[...scope.querySelectorAll('a[href],button:not(:disabled),input,select,iframe,video,[role=slider]')].filter(n=>n.tabIndex>=0&&!n.closest('[inert]')&&n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden');
+ const items=[...scope.querySelectorAll('a[href],button:not(:disabled),input,select,iframe,video,[tabindex="0"]')].filter(n=>n.tabIndex>=0&&!n.closest('[inert]')&&n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden');
  const a=document.activeElement;if(!items.includes(a)){e.preventDefault();items[0]?.focus();return}
  const center=n=>{const r=n.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]},[x,y]=center(a),horizontal=['ArrowLeft','ArrowRight'].includes(e.key),sign=['ArrowLeft','ArrowUp'].includes(e.key)?-1:1;
  // Cross-axis distance is measured to the target's edges so wide targets (the seek bar) count as straight ahead.
@@ -120,4 +121,5 @@ document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp',
  const row=a.getBoundingClientRect(),same=horizontal&&opts.find(o=>{const r=o.n.getBoundingClientRect();return r.top<row.bottom&&r.bottom>row.top});
  const pick=same||opts[0];if(pick){e.preventDefault();pick.n.focus()}});
 render();
+Releases.footer();Releases.announce();
 if(window.STRAND_FIREBASE)import('./firebase.js').then(m=>m.connect(window.STRAND_FIREBASE,seed,(state)=>{({user,isAdmin,ready,cloudError}=state);library=state.library;render()})).then(c=>{cloud=c;render()}).catch(()=>{cloudError='Firebase is unavailable. Showing the sample collection.';render()});

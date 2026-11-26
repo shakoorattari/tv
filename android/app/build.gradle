@@ -2,6 +2,9 @@ plugins {
     id 'com.android.application' version '8.7.3'
 }
 
+// Release names and notes live in dist/changelog.json, shared with the web app and update checks.
+def changelog = new groovy.json.JsonSlurper().parse(rootProject.file('../dist/changelog.json'))
+
 android {
     namespace 'com.shakoorattari.strandtv'
     compileSdk 35
@@ -11,7 +14,7 @@ android {
         minSdk 23
         targetSdk 35
         versionCode Integer.parseInt(System.getenv('STRAND_VERSION_CODE') ?: '1')
-        versionName '1.0.' + versionCode
+        versionName changelog.android[0].version
     }
     buildTypes {
         debug { applicationIdSuffix '.preview' }

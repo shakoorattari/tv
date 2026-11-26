@@ -18,6 +18,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.BufferedReader;
@@ -32,6 +33,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** Required in-app updates: one dialog that offers, downloads, verifies and hands off to the system installer. */
@@ -44,13 +46,19 @@ final class Updater {
 
     private static final class Release {
         final int versionCode;
-        final String versionName, sha256;
+        final String versionName, sha256, notes;
         final long size;
         Release(JSONObject json) {
             versionCode = json.optInt("versionCode");
             versionName = json.optString("versionName", "1.0." + versionCode);
             sha256 = json.optString("sha256", "");
             size = json.optLong("size", -1);
+            StringBuilder list = new StringBuilder();
+            JSONArray changes = json.optJSONArray("notes");
+            for (int i = 0; changes != null && i < changes.length() && i < 5; i++) {
+                list.append("\n\u2022 ").append(changes.optString(i));
+            }
+            notes = list.toString();
         }
     }
 
@@ -75,7 +83,7 @@ final class Updater {
         SharedPreferences prefs = activity.getSharedPreferences("updates", Context.MODE_PRIVATE);
         int previous = prefs.getInt("version", installed);
         if (installed > previous) {
-            Toast.makeText(activity, "Strand TV updated to " + versionName(activity), Toast.LENGTH_LONG).show();
+            Toast.makeText(activity, "Strand TV updated to " + installedName(activity), Toast.LENGTH_LONG).show();
         }
         prefs.edit().putInt("version", installed).apply();
     }
@@ -89,7 +97,7 @@ final class Updater {
         }
     }
 
-    private static String versionName(Context context) {
+    static String installedName(Context context) {
         try {
             return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
         } catch (PackageManager.NameNotFoundException e) {
@@ -154,7 +162,8 @@ final class Updater {
 
     private void offer() {
         show(Step.OFFER, "Update required",
-            "Version " + release.versionName + " of Strand TV is ready. Update now to keep watching.",
+            "Version " + release.versionName + " of Strand TV is ready. Update now to keep watching."
+                + (release.notes.isEmpty() ? "" : "\n\nWhat\u2019s new" + release.notes),
             "Update now", "Exit");
     }
 
@@ -316,9 +325,11 @@ final class Updater {
         bar.setMax(100);
         box.addView(text);
         box.addView(bar, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        ScrollView scroll = new ScrollView(activity);
+        scroll.addView(box);
         dialog = new AlertDialog.Builder(activity)
             .setTitle(" ")
-            .setView(box)
+            .setView(scroll)
             .setCancelable(false)
             .setPositiveButton(" ", null)
             .setNegativeButton(" ", null)
