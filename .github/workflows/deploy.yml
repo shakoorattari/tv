@@ -60,7 +60,9 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       - name: Stage web app and unsigned APK
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cp android/app/build/outputs/apk/release/app-release-unsigned.apk _site/unsigned.apk
+        run: |
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk _site/unsigned.apk
+          echo "{\"versionCode\":${GITHUB_RUN_NUMBER}}" > _site/version.json
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
