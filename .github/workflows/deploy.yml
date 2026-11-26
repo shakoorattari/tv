@@ -21,6 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The app version moves only when Android code changes, so web-only deploys don't force a reinstall.
+      # The offset keeps codes above the run-number versions (up to 28) that earlier builds used.
+      - name: Version the Android app
+        run: echo "STRAND_VERSION_CODE=$((100 + $(git rev-list --count HEAD -- android)))" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -62,7 +68,8 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk _site/unsigned.apk
-          echo "{\"versionCode\":${GITHUB_RUN_NUMBER}}" > _site/version.json
+          printf '{"versionCode":%s,"versionName":"1.0.%s","build":"%s"}\n' "$STRAND_VERSION_CODE" "$STRAND_VERSION_CODE" "$GITHUB_SHA" > _site/version.json
+          printf '\nwindow.STRAND_BUILD = "%s";\n' "$GITHUB_SHA" >> _site/config.js
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
@@ -101,6 +108,9 @@ jobs:
           "$signer" verify --verbose --print-certs _site/strand-tv.apk
           rm _site/unsigned.apk
           test -s _site/strand-tv.apk
+          jq --arg sha "$(sha256sum _site/strand-tv.apk | cut -d' ' -f1)" --argjson size "$(stat -c %s _site/strand-tv.apk)" \
+            '. + {sha256: $sha, size: $size}' _site/version.json > "$RUNNER_TEMP/version.json"
+          mv "$RUNNER_TEMP/version.json" _site/version.json
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
