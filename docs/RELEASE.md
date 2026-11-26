@@ -18,7 +18,18 @@ flowchart LR
 1. Open a feature branch and PR against main. CODEOWNERS assigns the entire repository to @shakoorattari. Protection applies to administrators and dismisses approvals after new commits. Keep the PR author separate from the approving owner. GitHub may also require a separate approval to start CI.
 2. Review client syntax checks, Gradle debug and release builds and Android lint. A successful PR build uploads the preview APK under the artifact name `strand-tv-preview`. Its application ID ends in `.preview`. Use the production package for release upgrade testing.
 3. After approval and merge, the push to main rebuilds, stages static assets and uploads the unsigned APK with the site as `release-inputs`. The deploy job signs the APK and runs `apksigner verify` before publishing the Pages artifact.
-4. Open the production footer, follow the APK download, check the archive and verify its signer. Record the workflow run and test on a physical TV. Version code comes from the workflow run number, so keep it increasing across release workflow changes.
+4. Open the production footer, follow the APK download, check the archive and verify its signer. Record the workflow run and test on a physical TV.
+
+## Versions and changelog
+
+The web app and the Android app have separate [semantic versions](https://semver.org/). Both live in [`dist/changelog.json`](../dist/changelog.json), newest release first. It is the only place to change them:
+
+- The web app shows the file on its **About** page, and the first entry is the running web version. CI stamps it into `config.js` with the build commit.
+- Gradle reads the first Android entry as `versionName`. `versionCode` is `100 + commits touching android/`, so it rises only when Android code changes. The offset keeps it above the run-number codes (up to 28) that earlier builds used. Keep it increasing.
+- `version.json` publishes the Android version, its notes, the APK checksum and size. The app's update dialog shows those notes.
+- After an update, each device shows **What's new** once, covering the releases since it last opened Strand TV.
+
+Every pull request that changes `dist/` needs a new web entry. Every pull request that changes `android/` needs a new Android entry. Write changes for viewers, not developers. Use a patch version for fixes, a minor version for new features and a major version for breaking changes. CI runs `node scripts/check-changelog.mjs origin/main` and fails without the bump. Run it locally before pushing.
 
 ## Configuration
 

@@ -7,7 +7,7 @@ Channel selections and the seven videos listed by the Hamza 6 kalmay playlist ar
 
 ## Project documentation
 
-[Project memory and roadmap](docs/PROJECT-MEMORY.md) · [Architecture and Firebase](docs/DEVELOPMENT.md) · [Release and recovery](docs/RELEASE.md) · [Signed Android TV installer](https://shakoorattari.com/tv/strand-tv.apk)
+[Project memory and roadmap](docs/PROJECT-MEMORY.md) · [Architecture and Firebase](docs/DEVELOPMENT.md) · [Release, versions and recovery](docs/RELEASE.md) · [Changelog](dist/changelog.json) (also on the app's About page) · [Signed Android TV installer](https://shakoorattari.com/tv/strand-tv.apk)
 
 ## YouTube previews in Studio
 

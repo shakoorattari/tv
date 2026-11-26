@@ -36,7 +36,8 @@ public final class TvActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " StrandTVAndroid/" + Updater.installedVersion(this));
+        settings.setUserAgentString(settings.getUserAgentString() + " StrandTVAndroid/" + Updater.installedVersion(this)
+            + " StrandTVApp/" + Updater.installedName(this));
         browser.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 return request.isForMainFrame() && openExternal(request.getUrl());

@@ -35,8 +35,10 @@ jobs:
           set -eu
           for script in dist/*.js; do node --check "$script"; done
           mkdir -p _site
-          cp dist/*.html dist/*.js dist/*.css _site/
+          cp dist/*.html dist/*.js dist/*.css dist/*.json _site/
           cp -R dist/art _site/art
+      - name: Check changelog and version bumps
+        run: node scripts/check-changelog.mjs ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
       - name: Configure optional YouTube metadata lookup
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -68,8 +70,15 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk _site/unsigned.apk
-          printf '{"versionCode":%s,"versionName":"1.0.%s","build":"%s"}\n' "$STRAND_VERSION_CODE" "$STRAND_VERSION_CODE" "$GITHUB_SHA" > _site/version.json
-          printf '\nwindow.STRAND_BUILD = "%s";\n' "$GITHUB_SHA" >> _site/config.js
+          node --input-type=module > _site/version.json <<'JS'
+          import {readFileSync} from 'node:fs';
+          const log = JSON.parse(readFileSync('dist/changelog.json', 'utf8'));
+          const app = log.android[0];
+          console.log(JSON.stringify({versionCode: Number(process.env.STRAND_VERSION_CODE), versionName: app.version,
+            notes: app.changes, web: log.web[0].version, build: process.env.GITHUB_SHA}));
+          JS
+          printf '\nwindow.STRAND_BUILD = "%s";\nwindow.STRAND_VERSION = "%s";\n' "$GITHUB_SHA" \
+            "$(node -p "require('./dist/changelog.json').web[0].version")" >> _site/config.js
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:

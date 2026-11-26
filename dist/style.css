@@ -64,3 +64,22 @@ html.sp-open{overflow:hidden}
 @media (max-height:480px){.sp .sp-card{flex-basis:120px}.sp-title{font-size:18px;margin-bottom:8px}.sp-bottom{padding-bottom:10px}}
 @media (prefers-reduced-motion:reduce){.sp-chrome,.sp-poster,.sp-stage{transition:none}}
 .cover-preview{display:block;width:min(100%,320px);aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#213033}.lookup-status{font-size:.9rem;color:#bcd8c1;margin:.5rem 0 1rem}textarea{resize:vertical;font:inherit;width:100%;border:1px solid #445452;border-radius:9px;padding:9px 15px;background:#1d292c;color:inherit}.hero p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.versions{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:8px}
+.version-card{display:grid;gap:4px;align-content:start;padding:18px 20px;border-radius:14px;background:#19262a;border:1px solid #2c3b3d}
+.version-card strong{font-size:clamp(28px,3vw,40px);letter-spacing:-.04em;line-height:1.1}
+.version-card small{color:#a7b7af}
+.version-card .button{justify-self:start;margin-top:8px;font-size:14px}
+.version-card .update-note{color:#baf3a6;font-weight:650}
+.changelog{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px;align-items:start}
+.changelog h3{margin:0 0 12px;font-size:18px;color:#bce9b4}
+.release{padding:14px 18px;margin-bottom:12px;border-radius:12px;background:#142125;border:1px solid #26343a}
+.release-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.release-head strong{font-size:20px;letter-spacing:-.02em}
+.release time{margin-left:auto;font-size:13px;color:#a3b4b1}
+.release ul,.whats-new ul{margin:0;padding-left:20px;color:#dfe9e3}
+.release li,.whats-new li{margin:4px 0}
+.badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;background:#baf3a6;color:#16251c}
+.whats-new h3{margin:14px 0 6px;font-size:16px;color:#bce9b4}
+.whats-new h3:first-child{margin-top:0}
+footer .version-link{color:#c7d6d2}
+footer .version-link:hover{color:#edf4ed}
