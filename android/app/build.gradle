@@ -10,7 +10,7 @@ android {
         applicationId 'com.shakoorattari.strandtv'
         minSdk 23
         targetSdk 35
-        versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
+        versionCode Integer.parseInt(System.getenv('STRAND_VERSION_CODE') ?: '1')
         versionName '1.0.' + versionCode
     }
     buildTypes {
