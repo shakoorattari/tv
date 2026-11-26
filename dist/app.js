@@ -31,13 +31,13 @@ function source(raw){
    return {name:'YouTube playlist',embed:'https://www.youtube-nocookie.com/embed/videoseries?autoplay=1&playsinline=1&list='+u.searchParams.get('list')};
  }
  id=h==='youtu.be'?parts[1]:u.searchParams.get('v')||(['shorts','embed','live'].includes(parts[1])?parts[2]:'');
- if(!/^[\w-]{11}$/.test(id||''))throw Error('Enter a YouTube video link.');return {name:'YouTube',embed:'https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&playsinline=1'};}
+ if(!/^[\w-]{11}$/.test(id||''))throw Error('Enter a YouTube video link.');return {name:'YouTube',videoId:id,embed:'https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&playsinline=1'};}
  if(h==='drive.google.com'&&(id=p.match(/\/file\/d\/([\w-]+)/)?.[1]||u.searchParams.get('id'))&&/^[\w-]+$/.test(id)){let v=new URL('https://drive.google.com/file/d/'+id+'/preview');if(u.searchParams.has('resourcekey'))v.searchParams.set('resourcekey',u.searchParams.get('resourcekey'));return {name:'Google Drive',embed:v.href}}
  if(/\.(mp4|webm)$/i.test(p))return {name:'Direct video',media:u.href};
  return {name:h==='1drv.ms'||h==='onedrive.live.com'||h.endsWith('.sharepoint.com')?'OneDrive':'Web link'};}
 function cover(v){
- const match=v.url.match(/^https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})$/);
- if(match && kidsCatalog.some(item=>item.url===v.url))return 'https://i.ytimg.com/vi/'+match[1]+'/hqdefault.jpg';
+ const id=youtubeVideoId(v.url);
+ if(id && (v.art==='youtube' || v.coverMode!=='manual'))return 'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';
  return './art/'+(['aurora','coast','bloom'].includes(v.art)?v.art:'aurora')+'.svg'}
 function notice(s){$('#status').textContent=s;setTimeout(()=>{if($('#status').textContent===s)$('#status').textContent=''},4000)}
 function show(title,html){if(!modal.open)dialogOrigin=document.activeElement;$('#modalTitle').textContent=title;body.innerHTML=html;if(!modal.open)modal.showModal();}
@@ -70,11 +70,17 @@ function changeProfiles(fn){const next=structuredClone(read(pk,profiles));fn(nex
 function edit(type,id){
  const item=type==='video'?library.videos.find(v=>v.id===id):null;
  let fields='<label>Name<input name="name" maxlength="90" required value="'+esc(type==='profile'?profiles.items.find(p=>p.id===id)?.name:id)+'"></label>';
- if(type==='video'){if(!library.categories.length)return notice('Create a category first.');fields='<label>Title<input name="title" maxlength="100" required value="'+esc(item?.title)+'"></label><label>Video URL<input name="url" type="url" required value="'+esc(item?.url)+'"></label><label>Category<select name="category">'+library.categories.map(c=>'<option '+(item?.category===c?'selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label><label>Description<input name="description" maxlength="250" value="'+esc(item?.description)+'"></label><label>Cover artwork<select name="art">'+['aurora','coast','bloom'].map(a=>'<option '+(item?.art===a?'selected':'')+'>'+a+'</option>').join('')+'</select></label>';}
+ if(type==='video'){if(!library.categories.length)return notice('Create a category first.');fields='<label>Video URL<input name="url" type="url" required value="'+esc(item?.url)+'"></label>'+
+ '<img class="cover-preview" alt="Cover artwork preview"><p class="lookup-status" role="status"></p>'+
+ '<label>Title<input name="title" maxlength="150" required value="'+esc(item?.title)+'"></label>'+
+ '<label>Category<select name="category">'+library.categories.map(c=>'<option '+(item?.category===c?'selected':'')+'>'+esc(c)+'</option>').join('')+'</select></label>'+
+ '<label>Description<textarea name="description" rows="4" maxlength="5000">'+esc(item?.description)+'</textarea></label>'+
+ '<label>Cover artwork<select name="art">'+['youtube','aurora','coast','bloom'].map(a=>'<option value="'+a+'" '+(item?.art===a?'selected':'')+'>'+ (a==='youtube'?'YouTube thumbnail':a)+'</option>').join('')+'</select></label>';}
  show((id?'Edit ':'Add ')+type,'<form>'+fields+'<button class="primary">Save</button><p class="err" role="alert"></p></form>');
+ if(type==='video')bindVideoPreview(body.querySelector('form'),item);
  submit(async data=>{for(const k in data)data[k]=data[k].trim();if(!(data.name||data.title))throw Error('Enter a name or title.');
  if(type==='profile'){changeProfiles(p=>{const v=p.items.find(v=>v.id===id);if(v)v.name=data.name;else p.items.push({id:crypto.randomUUID(),name:data.name})});return}
- if(type==='video')source(data.url);
+ if(type==='video'){source(data.url);data.coverMode=data.art==='youtube'?'auto':'manual';}
  await changeLibrary(l=>{if(type==='category'){if(id&&!l.categories.includes(id))throw Error('Category changed. Reopen Studio.');if(data.name!==id&&l.categories.includes(data.name))throw Error('This category already exists.');if(id){l.categories[l.categories.indexOf(id)]=data.name;l.videos.forEach(v=>{if(v.category===id)v.category=data.name})}else l.categories.push(data.name)}
  else{if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');const v={...data,id:id||crypto.randomUUID()};if(id){const n=l.videos.findIndex(v=>v.id===id);if(n<0)throw Error('This video was removed.');l.videos[n]=v}else l.videos.push(v)}});filter='';});}
 function remove(type,id){show('Remove '+type,'<form><p>Remove “'+esc(type==='video'?library.videos.find(v=>v.id===id)?.title:type==='profile'?profiles.items.find(p=>p.id===id)?.name:id)+'”?</p><div class="actions"><button>Remove</button></div><p class="err"></p></form>');submit(async()=>{if(type==='profile'){changeProfiles(p=>{if(p.items.length===1)throw Error('Keep at least one viewer profile.');p.items=p.items.filter(v=>v.id!==id);if(p.active===id)p.active=p.items[0].id});return}await changeLibrary(l=>{if(type==='video')l.videos=l.videos.filter(v=>v.id!==id);else{if(l.videos.some(v=>v.category===id))throw Error('Move or remove videos in this category first.');l.categories=l.categories.filter(c=>c!==id)}});filter='';});}
