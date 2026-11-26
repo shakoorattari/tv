@@ -24,7 +24,7 @@ let library=window.STRAND_FIREBASE?seed:deviceLibrary(), profiles=read(pk,{activ
 let filter='',user=null,isAdmin=false,cloud=null,cloudError='',ready=!window.STRAND_FIREBASE,dialogOrigin=null;
 const isAndroid=navigator.userAgent.includes('StrandTVAndroid/');
 const downloadLink = document.querySelector('.apk-download');
-if (downloadLink && isAndroid) downloadLink.hidden = true;
+if (downloadLink && (isAndroid || AppInstall.apple)) downloadLink.hidden = true;
 const main=$('#main'),modal=$('#modal'),body=$('#body');
 function source(raw){
  const u=new URL(raw); if(u.protocol!=='https:'||u.username||u.password)throw Error('Enter an HTTPS link without credentials.');
@@ -97,17 +97,21 @@ main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.datas
 $('#profile').onclick=()=>{show('Choose viewer',profiles.items.map(p=>'<div class="row"><span>'+esc(p.name)+'</span><button data-p="'+esc(p.id)+'">'+(p.id===profiles.active?'Selected':'Choose')+'</button></div>').join(''));body.querySelectorAll('button').forEach(b=>b.onclick=()=>{changeProfiles(p=>p.active=b.dataset.p);render();modal.close()})};
 window.onhashchange=()=>{filter='';render();document.querySelector('nav .active')?.focus()};window.addEventListener('storage',()=>{if(!window.STRAND_FIREBASE)library=deviceLibrary();profiles=read(pk,profiles);render()});
 window.strandBack=()=>{if(StrandPlayer.isOpen()){StrandPlayer.close();return true}if(modal.open){modal.close();return true}return false};
+// Apps and TV tabs stay open for days, so a deploy would otherwise never reach them.
 function watchForUpdates(){
- const appVersion=Number(navigator.userAgent.match(/StrandTVAndroid\/(\d+)/)?.[1]||0);let offered=false;
+ let offered=false;
  const ask=()=>{if(StrandPlayer.isOpen()||modal.open)return void setTimeout(ask,5000);
   show('Strand TV was updated','<p class="muted">Restart to load the latest version.</p><div class="actions"><button class="primary" id="restart">Restart now</button><button id="later">Later</button></div>');
   $('#restart').onclick=()=>location.reload();$('#later').onclick=()=>modal.close();$('#restart').focus()};
- const check=async()=>{if(offered||document.hidden)return;try{
+ const check=async resumed=>{if(offered||document.hidden)return;try{
   const v=await(await fetch('./version.json?t='+Date.now(),{cache:'no-store'})).json();
-  // Releases that need a new APK are handled by the Android app's own update dialog.
-  if(!v.build||v.build===window.STRAND_BUILD||(isAndroid&&v.versionCode>appVersion))return;
-  offered=true;ask()}catch{}};
- setTimeout(check,60e3);setInterval(check,15*60e3);document.addEventListener('visibilitychange',check);
+  if(!v.build||v.build===window.STRAND_BUILD||offered)return;
+  offered=true;
+  // Coming back with nothing playing: load the new version straight away instead of asking.
+  if(resumed&&!StrandPlayer.isOpen()&&!modal.open)return location.reload();
+  ask()}catch{}};
+ window.strandResume=()=>check(true);
+ setTimeout(check,60e3);setInterval(check,15*60e3);document.addEventListener('visibilitychange',()=>check(true));
 }
 if(window.STRAND_BUILD)watchForUpdates();
 document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)||['INPUT','SELECT','VIDEO','IFRAME','TEXTAREA'].includes(document.activeElement.tagName))return;
@@ -121,5 +125,5 @@ document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp',
  const row=a.getBoundingClientRect(),same=horizontal&&opts.find(o=>{const r=o.n.getBoundingClientRect();return r.top<row.bottom&&r.bottom>row.top});
  const pick=same||opts[0];if(pick){e.preventDefault();pick.n.focus()}});
 render();
-Releases.footer();Releases.announce();
+Releases.footer();Releases.announce();AppInstall.banner();
 if(window.STRAND_FIREBASE)import('./firebase.js').then(m=>m.connect(window.STRAND_FIREBASE,seed,(state)=>{({user,isAdmin,ready,cloudError}=state);library=state.library;render()})).then(c=>{cloud=c;render()}).catch(()=>{cloudError='Firebase is unavailable. Showing the sample collection.';render()});

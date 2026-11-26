@@ -79,6 +79,8 @@ jobs:
           JS
           printf '\nwindow.STRAND_BUILD = "%s";\nwindow.STRAND_VERSION = "%s";\n' "$GITHUB_SHA" \
             "$(node -p "require('./dist/changelog.json').web[0].version")" >> _site/config.js
+          # Per-build script and style URLs, so a reload never mixes a new page with cached old files.
+          sed -i -E "s#(src|href)=\"\./([a-z-]+\.(js|css))\"#\1=\"./\2?v=${GITHUB_SHA::7}\"#g" _site/index.html
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
