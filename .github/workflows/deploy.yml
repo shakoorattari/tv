@@ -101,8 +101,8 @@ jobs:
           "$signer" verify --verbose --print-certs _site/strand-tv.apk
           rm _site/unsigned.apk
           test -s _site/strand-tv.apk
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
