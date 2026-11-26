@@ -5,7 +5,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,7 +32,7 @@ jobs:
           cp dist/*.html dist/*.js dist/*.css _site/
           cp -R dist/art _site/art
       - name: Configure optional YouTube metadata lookup
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           YOUTUBE_BROWSER_KEY: ${{ vars.STRAND_YOUTUBE_API_KEY }}
         run: |
@@ -43,15 +42,15 @@ jobs:
           if (key) appendFileSync('_site/config.js', '\nwindow.STRAND_YOUTUBE_API_KEY = ' + JSON.stringify(key) + ';\n');
           JS
       - uses: actions/configure-pages@v5
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           path: _site
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write

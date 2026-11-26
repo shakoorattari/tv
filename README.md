@@ -13,6 +13,12 @@ The hosted Worker serves the web app and its same-origin /api/youtube metadata e
 
 ## GitHub Pages deployment
 
-Push to main to build and publish. Pull requests validate the static client. The Deploy to GitHub Pages workflow can also be started from the Actions tab. In Settings → Pages, choose GitHub Actions as the source. The project inherits the account site's custom domain at /tv/.
+Push to main to build and publish. Pull requests validate the static client. In Settings → Pages, choose GitHub Actions as the source. The project inherits the account site's custom domain at /tv/.
 
 For full YouTube description lookup on Pages, set the Actions repository variable STRAND_YOUTUBE_API_KEY to a browser key restricted to the YouTube Data API v3 and the production site's HTTP referrers. The published client contains the browser key. Without it, YouTube thumbnails and oEmbed title lookup are available and descriptions can be entered manually.
+
+Changes to main require a pull request approved by @shakoorattari. New commits dismiss stale approvals. Only a push to main can publish.
+
+## License
+
+The Strand TV application code is available under the [MIT License](LICENSE). Linked videos, provider thumbnails, and third-party brands are subject to their respective owners’ terms.
