@@ -159,7 +159,13 @@ public final class TvActivity extends Activity {
         });
     }
     @Override protected void onPause() { browser.onPause(); super.onPause(); }
-    @Override protected void onResume() { super.onResume(); browser.onResume(); updater.onResume(); }
+    @Override protected void onResume() {
+        super.onResume();
+        browser.onResume();
+        updater.onResume();
+        // Returning to the app picks up a newer web build; the page may have stayed in memory for days.
+        browser.evaluateJavascript("window.strandResume&&window.strandResume()", null);
+    }
     @Override protected void onDestroy() {
         updater.close();
         leaveFullscreen();

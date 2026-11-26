@@ -7,7 +7,8 @@
         "On Android phones and tablets, a Get the app prompt opens the Strand TV app, or downloads it with install steps if it isn't installed yet.",
         "In portrait, the player works like YouTube: the video sits on top, with the title, controls and Up next list below.",
         "A full-screen button turns the video sideways in the app, and uses full screen in the browser.",
-        "The About page shows the right app option for your device."
+        "The About page shows the right app option for your device.",
+        "Coming back to Strand TV loads the newest version right away, so new features like the repeat button always show up."
       ]
     },
     {
@@ -82,7 +83,8 @@
         "The app turns with your phone between portrait and landscape, like YouTube.",
         "Portrait keeps the status and navigation bars; landscape fills the whole screen.",
         "The player's full-screen button turns the phone to landscape, and Back returns it.",
-        "The website's Get the app button opens the app when it's already installed."
+        "The website's Get the app button opens the app when it's already installed.",
+        "Returning to the app checks for a newer version of the site and loads it."
       ]
     },
     {
