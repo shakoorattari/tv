@@ -28,10 +28,10 @@ function source(raw){
  const h=u.hostname,p=u.pathname,parts=p.split('/');let id;
  if(['youtube.com','www.youtube.com','m.youtube.com','youtu.be'].includes(h)){
  if(p==='/playlist' && /^[A-Za-z0-9_-]+$/.test(u.searchParams.get('list')||'')){
-   return {name:'YouTube playlist',embed:'https://www.youtube-nocookie.com/embed/videoseries?list='+u.searchParams.get('list')};
+   return {name:'YouTube playlist',embed:'https://www.youtube-nocookie.com/embed/videoseries?autoplay=1&playsinline=1&list='+u.searchParams.get('list')};
  }
  id=h==='youtu.be'?parts[1]:u.searchParams.get('v')||(['shorts','embed','live'].includes(parts[1])?parts[2]:'');
- if(!/^[\w-]{11}$/.test(id||''))throw Error('Enter a YouTube video link.');return {name:'YouTube',embed:'https://www.youtube-nocookie.com/embed/'+id};}
+ if(!/^[\w-]{11}$/.test(id||''))throw Error('Enter a YouTube video link.');return {name:'YouTube',embed:'https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&playsinline=1'};}
  if(h==='drive.google.com'&&(id=p.match(/\/file\/d\/([\w-]+)/)?.[1]||u.searchParams.get('id'))&&/^[\w-]+$/.test(id)){let v=new URL('https://drive.google.com/file/d/'+id+'/preview');if(u.searchParams.has('resourcekey'))v.searchParams.set('resourcekey',u.searchParams.get('resourcekey'));return {name:'Google Drive',embed:v.href}}
  if(/\.(mp4|webm)$/i.test(p))return {name:'Direct video',media:u.href};
  return {name:h==='1drv.ms'||h==='onedrive.live.com'||h.endsWith('.sharepoint.com')?'OneDrive':'Web link'};}
