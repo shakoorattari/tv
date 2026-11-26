@@ -41,23 +41,66 @@ jobs:
           const key = process.env.YOUTUBE_BROWSER_KEY;
           if (key) appendFileSync('_site/config.js', '\nwindow.STRAND_YOUTUBE_API_KEY = ' + JSON.stringify(key) + ';\n');
           JS
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build Android TV packages
+        run: gradle --project-dir android :app:assembleDebug :app:assembleRelease :app:lintDebug
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: strand-tv-preview
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
       - uses: actions/configure-pages@v5
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      - uses: actions/upload-pages-artifact@v3
+      - name: Stage web app and unsigned APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp android/app/build/outputs/apk/release/app-release-unsigned.apk _site/unsigned.apk
+      - uses: actions/upload-artifact@v4
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
+          name: release-inputs
           path: _site
+          if-no-files-found: error
 
   deploy:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-inputs
+          path: _site
+      - name: Sign and verify Android TV download
+        env:
+          TV_KEYSTORE: ${{ secrets.TV_KEYSTORE }}
+          TV_KEY_PASSWORD: ${{ secrets.TV_KEY_PASSWORD }}
+        run: |
+          set -eu
+          umask 077
+          key="$RUNNER_TEMP/strand-tv.p12"
+          trap 'rm -f "$key"' EXIT
+          printf %s "$TV_KEYSTORE" | base64 --decode > "$key"
+          signer="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$signer" sign --ks "$key" --ks-type PKCS12 --ks-key-alias strandtv --ks-pass env:TV_KEY_PASSWORD --out _site/strand-tv.apk _site/unsigned.apk
+          "$signer" verify --verbose --print-certs _site/strand-tv.apk
+          rm _site/unsigned.apk
+          test -s _site/strand-tv.apk
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
