@@ -13,4 +13,5 @@
 #fs-player .fs-card:focus,#fs-player .fs-card:hover{border-color:#d1ffa9;outline:none}
 #fs-player .fs-card img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:.4rem;display:block}
 #fs-player .fs-card span{display:block;font-size:.75rem;padding:.3rem .2rem 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#fs-player .fs-yt-block{position:absolute;right:0;bottom:0;width:28%;height:52px;z-index:2;background:#000}
 .cover-preview{display:block;width:min(100%,320px);aspect-ratio:16/9;object-fit:cover;border-radius:9px;background:#213033}.lookup-status{font-size:.9rem;color:#bcd8c1;margin:.5rem 0 1rem}textarea{resize:vertical;font:inherit;width:100%;border:1px solid #445452;border-radius:9px;padding:9px 15px;background:#1d292c;color:inherit}.hero p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
