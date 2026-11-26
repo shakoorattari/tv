@@ -217,7 +217,7 @@ public final class TvActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (fullscreen != null) { leaveFullscreen(); return; }
-        browser.evaluateJavascript("(function(){var fs=document.getElementById('fs-player');if(fs){fs.remove();return true}var d=document.querySelector('dialog[open]');if(d){d.close();return true}return false})()", closed -> {
+        browser.evaluateJavascript("(function(){if(window.strandBack)return window.strandBack();var d=document.querySelector('dialog[open]');if(d){d.close();return true}return false})()", closed -> {
             if ("true".equals(closed)) return;
             if (browser.canGoBack()) browser.goBack(); else finish();
         });
