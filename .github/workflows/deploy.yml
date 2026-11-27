@@ -33,7 +33,8 @@ jobs:
       - name: Check client scripts and prepare static site
         run: |
           set -eu
-          for script in dist/*.js; do node --check "$script"; done
+          for script in dist/*.js worker/*.mjs; do node --check "$script"; done
+          node --test scripts/device-auth.test.mjs
           mkdir -p _site
           cp dist/*.html dist/*.js dist/*.css dist/*.json _site/
           cp -R dist/art _site/art
@@ -42,6 +43,7 @@ jobs:
       - name: Configure optional Firebase and YouTube services
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
+          DEVICE_AUTH_URL: ${{ vars.STRAND_DEVICE_AUTH_URL }}
           FIREBASE_WEB_CONFIG: ${{ vars.STRAND_FIREBASE_CONFIG }}
           YOUTUBE_BROWSER_KEY: ${{ vars.STRAND_YOUTUBE_API_KEY }}
         run: |
@@ -49,6 +51,14 @@ jobs:
           import {appendFileSync} from 'node:fs';
           const firebase = process.env.FIREBASE_WEB_CONFIG;
           if (firebase) appendFileSync('_site/config.js', '\nwindow.STRAND_FIREBASE = ' + JSON.stringify(JSON.parse(firebase)) + ';\n');
+          const relay = process.env.DEVICE_AUTH_URL;
+          if (relay) {
+            const url = new URL(relay);
+            if (url.protocol !== 'https:' || url.username || url.password || url.href !== url.origin + '/') {
+              throw Error('STRAND_DEVICE_AUTH_URL must be an HTTPS origin');
+            }
+            appendFileSync('_site/config.js', '\nwindow.STRAND_DEVICE_AUTH_URL = ' + JSON.stringify(url.origin) + ';\n');
+          }
           const key = process.env.YOUTUBE_BROWSER_KEY;
           if (key) appendFileSync('_site/config.js', '\nwindow.STRAND_YOUTUBE_API_KEY = ' + JSON.stringify(key) + ';\n');
           JS

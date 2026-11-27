@@ -325,7 +325,8 @@ main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.datas
 };
 $('#profile').onclick=()=>{
  const account=user?'<p>'+esc(user.displayName||user.email||'Signed in')+'</p><div class="actions"><button id="library-view">'+(inPersonal()?'Open shared library':'Open my library')+'</button><button id="sign-out">Sign out</button></div><p class="muted">Signing out removes this account’s offline videos from this device.</p>':
- cloud?'<button id="google-sign-in" class="primary">Continue with Google</button>':
+ cloud?'<div class="actions" id="google-actions"><button id="google-sign-in" class="primary">Continue with Google</button>'+
+  (isAndroid&&window.STRAND_DEVICE_AUTH_URL?'<button id="google-phone">Use a phone or computer</button>':'')+'</div>':
  window.STRAND_FIREBASE?'<p class="muted">Account sign-in is unavailable. Check your connection and try again.</p>':'';
  show('Viewer profiles',account+'<p class="err" id="account-error" role="alert"></p>'+
  (user?'':profiles.items.map(p=>'<div class="row"><span>'+esc(p.name)+'</span><button data-p="'+esc(p.id)+'">'+(p.id===profiles.active?'Selected':'Choose')+'</button></div>').join('')));
@@ -339,7 +340,43 @@ $('#profile').onclick=()=>{
    finally{button.disabled=false}
   };
  };
- accountAction('#google-sign-in',()=>cloud.google(isAndroid));
+ async function googleSignIn(forcePhone){
+  const cancel=new AbortController();
+  const buttons=[...body.querySelectorAll('#google-actions button')];
+  $('#account-error').textContent='';
+  buttons.forEach(button=>{button.disabled=true});
+  const abort=()=>cancel.abort();
+  const section=document.createElement('section');
+  section.className='device-code';
+  section.setAttribute('aria-live','polite');
+  modal.addEventListener('close',abort,{once:true});
+  try{
+   await cloud.google(isAndroid,{
+    signal:cancel.signal,
+    showCode:({code,url})=>{
+     if(cancel.signal.aborted)return;
+     section.replaceChildren();
+     const instructions=document.createElement('p');
+     instructions.textContent='On your phone or computer, open '+url+' and enter this code.';
+     const value=document.createElement('strong');
+     value.className='device-code-value';
+     value.textContent=code;
+     section.append(instructions,value);
+     $('#google-actions').after(section);
+     $('#close').focus();
+    },
+   },forcePhone);
+   if(!cancel.signal.aborted)modal.close();
+  }catch(err){
+   if(!cancel.signal.aborted)$('#account-error').textContent=err.message;
+  }finally{
+   section.remove();
+   buttons.forEach(button=>{button.disabled=false});
+   modal.removeEventListener('close',abort);
+  }
+ }
+ $('#google-sign-in')?.addEventListener('click',()=>googleSignIn(false));
+ $('#google-phone')?.addEventListener('click',()=>googleSignIn(true));
  accountAction('#sign-out',()=>cloud.logout());
  accountAction('#library-view',()=>selectLibrary(inPersonal()?'shared':'personal'));
  body.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{

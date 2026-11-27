@@ -8,7 +8,7 @@ const mediaName = prefix + 'offline:v1';
 const mb = 1_000_000;
 const assets = [
   'index.html', 'style.css', 'config.js', 'kids-catalog.js', 'video-editor.js',
-  'player.js', 'releases.js', 'install.js', 'offline.js', 'app.js', 'firebase.js',
+  'player.js', 'releases.js', 'install.js', 'offline.js', 'app.js', 'firebase.js', 'device-auth.js',
   'changelog.json', 'art/aurora.svg', 'art/coast.svg', 'art/bloom.svg',
 ];
 const firebaseBase = 'https://www.gstatic.com/firebasejs/10.14.1/';
