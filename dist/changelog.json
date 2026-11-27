@@ -1,6 +1,13 @@
 {
   "web": [
     {
+      "version": "1.11.0",
+      "date": "2026-11-27",
+      "changes": [
+        "Browse shared titles and your personal channels together, with videos loading in batches as you scroll."
+      ]
+    },
+    {
       "version": "1.10.0",
       "date": "2026-11-27",
       "changes": [

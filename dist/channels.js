@@ -30,13 +30,21 @@ const ChannelFeeds = (() => {
   if (!navigator.onLine || Date.now()<feed.next || feed.loading) return;
   feeds.set(channel.id,feed);
   feed.loading=true;
+  let updated=false;
   try {
    const items=await api('playlistItems',{part:'snippet,status',playlistId:channel.uploads,maxResults:50});
-   feed.items=items.filter(i=>i.status?.privacyStatus==='public' && /^[\w-]{11}$/.test(i.snippet?.resourceId?.videoId))
+   const nextItems=items.filter(i=>i.status?.privacyStatus==='public' && /^[\w-]{11}$/.test(i.snippet?.resourceId?.videoId))
     .map(({snippet:s})=>({videoId:s.resourceId.videoId,title:s.title,description:s.description}));
+   updated=!feed.next||feed.error||JSON.stringify(feed.items)!==JSON.stringify(nextItems);
+   feed.items=nextItems;
    feed.next=Date.now()+interval;
-   changed();
-  } catch {feed.next=Date.now()+60000;} finally {feed.loading=false;}
+   feed.error=false;
+  } catch {
+   updated=true;
+   feed.error=true;
+   feed.next=Date.now()+60000;
+  } finally {feed.loading=false;}
+  if(updated)changed();
  }
  function videos(catalog) {
   const extra=[],seen=new Set(catalog.videos.map(v=>v.category+'|'+youtubeVideoId(v.url)));
@@ -44,9 +52,13 @@ const ChannelFeeds = (() => {
    const key=c.category+'|'+v.videoId;
    if(seen.has(key))continue;
    seen.add(key);
-   extra.push({...v,id:'feed:'+c.id+':'+v.videoId,category:c.category,url:'https://www.youtube.com/watch?v='+v.videoId,art:'youtube'});
+   extra.push({...v,id:'feed:'+c.id+':'+v.videoId+':'+c.category,category:c.category,url:'https://www.youtube.com/watch?v='+v.videoId,art:'youtube'});
   }
-  return [...extra,...catalog.videos];
+  return [...catalog.videos,...extra];
  }
- return {resolve,refresh,videos};
+ function status(channel) {
+  const feed=feeds.get(channel.id);
+  return feed?.loading?'loading':feed?.error?'error':'';
+ }
+ return {resolve,refresh,status,videos};
 })();

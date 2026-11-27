@@ -156,3 +156,11 @@ footer .version-link:hover{color:#edf4ed}
 
 .device-code{margin:12px 0;padding:14px 16px;border:1px solid #445452;border-radius:12px;overflow-wrap:anywhere}
 .device-code-value{display:block;margin-top:8px;font-size:clamp(24px,5vw,38px);letter-spacing:.08em;color:#baf3a6}
+
+#browse-more{display:block;margin:24px auto 0}
+#browse-more[hidden]{display:none}
+.hero>div{min-width:0}
+.hero h1,.hero p{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.hero h1{-webkit-line-clamp:3}
+.hero p{-webkit-line-clamp:3}
+.card strong{overflow-wrap:anywhere}
