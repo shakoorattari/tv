@@ -111,5 +111,37 @@ const kidsCatalog = [
     "url": "https://www.youtube.com/playlist?list=PLPZvgDQ8_pLw",
     "art": "coast",
     "description": "Hamza 6 kalmay · Play in YouTube playlist order."
+  },
+  {
+    "id": "4ZMDzhxaRqE",
+    "title": "Chalo Ped Lagain",
+    "description": "An animated Urdu poem about planting trees.",
+    "category": "Kids Madani Channel",
+    "art": "youtube",
+    "url": "https://www.youtube.com/watch?v=4ZMDzhxaRqE"
+  },
+  {
+    "id": "T9M4SVGVD-0",
+    "title": "Mera Madani Maqsad",
+    "description": "A children’s poem about becoming a good person.",
+    "category": "Kids Madani Channel",
+    "art": "youtube",
+    "url": "https://www.youtube.com/watch?v=T9M4SVGVD-0"
+  },
+  {
+    "id": "dc3rWjIKMv4",
+    "title": "Iman e Mujmal",
+    "description": "An Arabic recitation for children to learn and repeat.",
+    "category": "Kids Madani Channel",
+    "art": "youtube",
+    "url": "https://www.youtube.com/watch?v=dc3rWjIKMv4"
+  },
+  {
+    "id": "ta5dr6QxQn0",
+    "title": "Bablo Gir Gaya, Noman Ki Ayadat",
+    "description": "A Ghulam Rasool cartoon about visiting someone who is unwell.",
+    "category": "Kids Madani Channel",
+    "art": "youtube",
+    "url": "https://www.youtube.com/watch?v=ta5dr6QxQn0"
   }
 ];

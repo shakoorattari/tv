@@ -1,6 +1,14 @@
 {
   "web": [
     {
+      "version": "1.10.0",
+      "date": "2026-11-27",
+      "changes": [
+        "Preview a YouTube channel’s name and description in Studio, then follow its latest public uploads in a new or existing category.",
+        "YouTube cover thumbnails are saved automatically as you add titles or browse, so library titles keep their artwork offline."
+      ]
+    },
+    {
       "version": "1.9.0",
       "date": "2026-11-27",
       "changes": [

@@ -6,9 +6,10 @@ const prefix = 'strand:' + scope.pathname + ':';
 const shellName = prefix + 'shell:' + build;
 const mediaName = prefix + 'offline:v1';
 const mb = 1_000_000;
+const thumbnailLifetime = 30 * 24 * 60 * 60_000;
 const assets = [
   'index.html', 'style.css', 'config.js', 'kids-catalog.js', 'video-editor.js',
-  'player.js', 'releases.js', 'install.js', 'offline.js', 'app.js', 'firebase.js', 'device-auth.js',
+  'player.js', 'releases.js', 'install.js', 'offline.js', 'channels.js', 'app.js', 'firebase.js', 'device-auth.js',
   'changelog.json', 'art/aurora.svg', 'art/coast.svg', 'art/bloom.svg',
 ];
 const firebaseBase = 'https://www.gstatic.com/firebasejs/10.14.1/';
@@ -19,7 +20,7 @@ let activeDownload;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(shellName).then(cache => cache.addAll(assets.map(path => {
-    const versioned = build !== 'STRAND_' + 'SW_BUILD' && /^(?:style\.css|config\.js|kids-catalog\.js|video-editor\.js|player\.js|releases\.js|install\.js|offline\.js|app\.js)$/.test(path);
+    const versioned = build !== 'STRAND_' + 'SW_BUILD' && /^(?:style\.css|config\.js|kids-catalog\.js|video-editor\.js|player\.js|releases\.js|install\.js|offline\.js|channels\.js|app\.js)$/.test(path);
     return new Request(address(path + (versioned ? '?v=' + build : '')), {cache: 'reload'});
   }))));
 });
@@ -62,12 +63,25 @@ self.addEventListener('fetch', event => {
   const path = url.pathname.slice(scope.pathname.length);
   if (/^_offline\/video\/[\da-f-]{36}$/.test(path)) {
     event.respondWith(serveVideo(request, url.origin + url.pathname));
+  } else if (/^_offline\/thumbnail\/[\da-f-]{36}$/.test(path)) {
+    event.respondWith(serveThumbnail(url.origin + url.pathname));
   } else if (request.mode === 'navigate' && ['', 'index.html'].includes(path)) {
     event.respondWith(serveShell(request, address('index.html')));
   } else if (assets.includes(path)) {
     event.respondWith(serveShell(request, request.url));
   }
 });
+
+async function serveThumbnail(key) {
+  const cache = await caches.open(mediaName);
+  const response = await cache.match(key);
+  if (response && Date.now() < Number(response.headers.get('x-strand-expires'))) return response;
+  if (response) {
+    await response.body.cancel();
+    await cache.delete(key);
+  }
+  return new Response('Thumbnail unavailable', {status: 404});
+}
 
 async function serveVideo(request, key) {
   const response = await (await caches.open(mediaName)).match(key);
@@ -108,18 +122,26 @@ async function serveVideo(request, key) {
 
 async function records(cache) {
   const keys = await cache.keys();
-  const videos = await Promise.all(keys.filter(key => key.url !== settingsKey).map(async key => {
+  const items = await Promise.all(keys.filter(key => key.url !== settingsKey).map(async key => {
     const response = await cache.match(key);
+    if (!response) return null;
     const item = JSON.parse(decodeURIComponent(response.headers.get('x-strand-title')));
     await response.body.cancel();
+    if (item.thumbnail && Date.now() >= Number(response.headers.get('x-strand-expires'))) {
+      await cache.delete(key);
+      return null;
+    }
     return {...item, key: key.url, size: Number(response.headers.get('content-length'))};
   }));
-  return videos.sort((a, b) => a.savedAt - b.savedAt);
+  return items.filter(Boolean).sort((a, b) => a.savedAt - b.savedAt);
 }
 
-async function trim(cache, videos, limit) {
-  let used = videos.reduce((sum, item) => sum + item.size, 0);
-  for (const item of videos) {
+const bytesUsed = items => items.reduce((sum, item) => sum + item.size, 0);
+
+async function trim(cache, items, limit) {
+  let used = bytesUsed(items);
+  const evictionOrder = [...items.filter(item => item.thumbnail), ...items.filter(item => !item.thumbnail)];
+  for (const item of evictionOrder) {
     if (used <= limit) break;
     await cache.delete(item.key);
     used -= item.size;
@@ -127,24 +149,32 @@ async function trim(cache, videos, limit) {
 }
 
 async function save(cache, videos, limit, owner, video) {
-  if (videos.some(item => item.owner === owner && item.url === video.url)) return;
-  const url = new URL(video.url);
-  if (url.protocol !== 'https:' || url.username || url.password || !/\.(mp4|webm)$/i.test(url.pathname)) {
+  const thumbnail = Boolean(video.thumbnail);
+  if (thumbnail && !/^[\w-]{11}$/.test(video.thumbnail)) throw Error('Choose a YouTube video thumbnail.');
+  if (videos.some(item => item.owner === owner &&
+      (thumbnail ? item.thumbnail === video.thumbnail : !item.thumbnail && item.url === video.url))) return;
+  const url = new URL(thumbnail ? 'https://i.ytimg.com/vi/' + video.thumbnail + '/hqdefault.jpg' : video.url);
+  if (!thumbnail && (url.protocol !== 'https:' || url.username || url.password || !/\.(mp4|webm)$/i.test(url.pathname))) {
     throw Error('Choose a direct HTTPS MP4 or WebM video.');
   }
-  if (!limit) throw Error('Set a storage limit to save videos.');
+  const available = thumbnail ? limit - bytesUsed(videos.filter(item => !item.thumbnail)) : limit;
+  if (thumbnail && available <= 0) return;
+  if (!limit) throw Error('Set a storage limit to save items.');
   const controller = new AbortController();
   activeDownload = {owner, controller};
-  const timeout = setTimeout(() => controller.abort(), 10 * 60_000);
+  const timeout = setTimeout(() => controller.abort(), thumbnail ? 5_000 : 10 * 60_000);
   try {
     const response = await fetch(url, {credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal});
     const type = response.headers.get('content-type')?.split(';')[0];
     const size = Number(response.headers.get('content-length'));
-    if (response.status !== 200 || !['video/mp4', 'video/webm'].includes(type) || !Number.isSafeInteger(size) || size <= 0) {
-      throw Error('The source must allow downloads and provide a video type and file size.');
+    const types = thumbnail ? ['image/jpeg'] : ['video/mp4', 'video/webm'];
+    if (response.status !== 200 || !types.includes(type) || !Number.isSafeInteger(size) || size <= 0) {
+      throw Error(thumbnail ? 'This YouTube thumbnail is unavailable.' :
+        'The source must allow downloads and provide a video type and file size.');
     }
+    if (thumbnail && size > available) return;
     if (size > limit) throw Error('This video is larger than the offline storage limit.');
-    await trim(cache, videos, limit - size);
+    if (!thumbnail) await trim(cache, videos, limit - size);
     let received = 0;
     const stream = response.body.pipeThrough(new TransformStream({
       transform(chunk, output) {
@@ -157,9 +187,16 @@ async function save(cache, videos, limit, owner, video) {
       },
     }));
     const item = {...video, owner, savedAt: Date.now()};
-    await cache.put(address('_offline/video/' + crypto.randomUUID()), new Response(stream, {headers: {
+    const headers = {
       'Content-Type': type, 'Content-Length': size, 'X-Strand-Title': encodeURIComponent(JSON.stringify(item)),
-    }}));
+    };
+    if (thumbnail) {
+      headers['Cache-Control'] = 'no-store';
+      headers['X-Strand-Expires'] = item.savedAt + thumbnailLifetime;
+    }
+    const path = thumbnail ? '_offline/thumbnail/' : '_offline/video/';
+    await cache.put(address(path + crypto.randomUUID()), new Response(stream, {headers}));
+    if (thumbnail) await trim(cache, videos.filter(item => item.thumbnail), available - size);
   } finally {
     clearTimeout(timeout);
     activeDownload = undefined;
@@ -192,12 +229,15 @@ self.addEventListener('message', event => {
       await cache.put(settingsKey, new Response(JSON.stringify(config)));
     }
     if (action === 'save') await save(cache, videos, config.limit * mb, owner, value);
+    if (action === 'thumbnail' && value?.thumbnail) await save(cache, videos, config.limit * mb, owner, value);
     if (action === 'remove' && videos.some(item => item.owner === owner && item.key === value)) await cache.delete(value);
     if (action === 'forget' && typeof owner === 'string' && owner.startsWith('account:')) {
       await Promise.all(videos.filter(item => item.owner === owner).map(item => cache.delete(item.key)));
     }
     if (action !== 'list') videos = await records(cache);
-    return {config, used: videos.reduce((sum, item) => sum + item.size, 0), videos: videos.filter(item => item.owner === owner)};
+    const owned = videos.filter(item => item.owner === owner);
+    return {config, used: bytesUsed(videos),
+      videos: owned.filter(item => !item.thumbnail), thumbnails: owned.filter(item => item.thumbnail)};
   });
   queue = operation.catch(() => {});
   event.waitUntil(operation.then(data => reply.postMessage({data}), err => reply.postMessage({error: err.message})));

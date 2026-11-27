@@ -4,7 +4,8 @@ service cloud.firestore {
     match /users/{uid}/library/current {
       allow get: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['categories','videos'])
+        && request.resource.data.keys().hasOnly(['categories','videos','channels'])
+        && (!('channels' in request.resource.data) || request.resource.data.channels is list)
         && request.resource.data.categories is list
         && request.resource.data.videos is list;
     }
@@ -15,7 +16,8 @@ service cloud.firestore {
       allow get: if true;
       allow create, update: if request.auth != null
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-        && request.resource.data.keys().hasOnly(['categories','videos'])
+        && request.resource.data.keys().hasOnly(['categories','videos','channels'])
+        && (!('channels' in request.resource.data) || request.resource.data.channels is list)
         && request.resource.data.categories is list
         && request.resource.data.videos is list;
     }
