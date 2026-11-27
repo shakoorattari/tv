@@ -1,6 +1,7 @@
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {getAuth,onAuthStateChanged,GoogleAuthProvider,signInWithCredential,signInWithPopup,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {getFirestore,doc,onSnapshot,runTransaction} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
+import {signInOnPhone} from './device-auth.js';
 
 const empty = {categories: [], videos: []};
 const sharedKey = 'strand.shared.v1';
@@ -96,9 +97,18 @@ export function connect(config, seed, onChange) {
 
   return {
     login: (email, password) => signInWithEmailAndPassword(auth, email, password),
-    async google(android) {
-      if (android) return signInWithCredential(auth, await androidCredential());
-      return signInWithPopup(auth, new GoogleAuthProvider());
+    async google(android, device, forcePhone = false) {
+      if (!android) return signInWithPopup(auth, new GoogleAuthProvider());
+      const relay = window.STRAND_DEVICE_AUTH_URL;
+      if (!forcePhone && (window.StrandGoogle || !relay)) {
+        try { return await signInWithCredential(auth, await androidCredential()); }
+        catch (err) {
+          // Previously released APKs report this exact message on TVs below Android 14.
+          if (!relay || err.message !== 'Google sign-in on TV requires Android 14 or later.') throw err;
+        }
+      }
+      const token = await signInOnPhone(relay, device);
+      return signInWithCredential(auth, GoogleAuthProvider.credential(token));
     },
     logout: () => signOut(auth),
     save: mutate => save(shared, seed, mutate),

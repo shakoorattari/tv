@@ -1,6 +1,13 @@
 {
   "web": [
     {
+      "version": "1.9.0",
+      "date": "2026-11-27",
+      "changes": [
+        "Use a phone or computer to approve Google sign-in on older Android TVs when device sign-in is configured."
+      ]
+    },
+    {
       "version": "1.8.1",
       "date": "2026-11-27",
       "changes": [

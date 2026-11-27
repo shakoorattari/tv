@@ -153,3 +153,6 @@ footer .version-link:hover{color:#edf4ed}
  header{flex-wrap:wrap;justify-content:space-between}
  header nav{order:1;width:100%;justify-content:space-between;flex-wrap:wrap}
 }
+
+.device-code{margin:12px 0;padding:14px 16px;border:1px solid #445452;border-radius:12px;overflow-wrap:anywhere}
+.device-code-value{display:block;margin-top:8px;font-size:clamp(24px,5vw,38px);letter-spacing:.08em;color:#baf3a6}
