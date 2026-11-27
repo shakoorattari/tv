@@ -4,7 +4,7 @@
       "version": "1.10.0",
       "date": "2026-11-27",
       "changes": [
-        "Follow a YouTube channel in Studio to show its latest public uploads in a category.",
+        "Preview a YouTube channel’s name and description in Studio, then follow its latest public uploads in a new or existing category.",
         "YouTube cover thumbnails are saved automatically as you add titles or browse, so library titles keep their artwork offline."
       ]
     },

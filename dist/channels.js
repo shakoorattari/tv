@@ -22,7 +22,8 @@ const ChannelFeeds = (() => {
   if (!param) throw Error('Enter a YouTube @handle or channel ID.');
   const [channel] = await api('channels',{part:'snippet,contentDetails',...param});
   if (!channel?.contentDetails?.relatedPlaylists?.uploads) throw Error('Channel not found.');
-  return {id:channel.id,title:channel.snippet.title,uploads:channel.contentDetails.relatedPlaylists.uploads};
+  return {id:channel.id,title:channel.snippet.title,description:channel.snippet.description || '',
+   uploads:channel.contentDetails.relatedPlaylists.uploads};
  }
  async function refresh(channel, changed) {
   const feed = feeds.get(channel.id) || {items:[],next:0};

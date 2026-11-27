@@ -310,18 +310,49 @@ function refreshChannels(){
 setInterval(refreshChannels,60000);
 window.addEventListener('online',refreshChannels);
 document.addEventListener('visibilitychange',refreshChannels);
-function addChannel(){
- const scope=library,viewer=owner(),personal=inPersonal();
- if(!scope.categories.length)return notice('Create a category first.');
- show('Follow YouTube channel','<form><label>Channel URL, @handle or ID<input name="channel" required></label><label>Category<select name="category">'+scope.categories.map(c=>'<option>'+esc(c)+'</option>').join('')+'</select></label><button>Follow channel</button><p class="err" role="alert"></p></form>');
- submit(async data=>{
-  const channel=await ChannelFeeds.resolve(data.channel);
+function addChannel(input=''){
+ const viewer=owner(),personal=inPersonal();
+ const checkLibrary=()=>{
   if(viewer!==owner()||personal!==inPersonal())throw Error('Reopen the active library before following a channel.');
-  await changeLibrary(l=>{
-   if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');
-   l.channels ||= [];
-   if(l.channels.some(c=>c.id===channel.id))throw Error('This channel is already followed.');
-   l.channels.push({...channel,category:data.category});
+ };
+ show('Follow YouTube channel','<form><label>Channel URL, @handle or ID<input name="channel" required value="'+esc(input)+'"></label><button>Look up channel</button><p class="err" role="alert"></p></form>');
+ const lookup=body.querySelector('form');
+ submit(async data=>{
+  const {id,title,description,uploads}=await ChannelFeeds.resolve(data.channel);
+  if(!lookup.isConnected||!modal.open)return;
+  checkLibrary();
+  if(library.channels?.some(c=>c.id===id))throw Error('This channel is already followed.');
+  show('Follow YouTube channel','<form><strong>'+esc(title)+'</strong>'+
+   (description?'<p class="muted">'+esc(description)+'</p>':'')+
+   '<label>Category<select name="category">'+library.categories.map(c=>'<option value="existing:'+esc(c)+'"'+(c===title?' selected':'')+'>'+esc(c)+'</option>').join('')+
+   '<option value="new">Create a category</option></select></label>'+
+   '<div id="channel-category-name"><label>New category name<input name="name" maxlength="90" value="'+esc(title.slice(0,90))+'"></label></div>'+
+   '<div class="actions"><button class="primary">Follow channel</button><button type="button" id="channel-back">Back</button></div><p class="err" role="alert"></p></form>');
+  const {category,name}=body.querySelector('form').elements;
+  const updateCategory=()=>{
+   const creating=category.value==='new';
+   $('#channel-category-name').hidden=!creating;
+   name.disabled=!creating;
+   name.required=creating;
+  };
+  category.onchange=updateCategory;
+  updateCategory();
+  category.focus();
+  $('#channel-back').onclick=()=>addChannel(data.channel);
+  submit(async choice=>{
+   checkLibrary();
+   const creating=choice.category==='new';
+   const selected=creating?choice.name.trim():choice.category.slice('existing:'.length);
+   if(creating&&(!selected||selected.length>90))throw Error('Enter a category name up to 90 characters.');
+   await changeLibrary(l=>{
+    l.channels ||= [];
+    if(l.channels.some(c=>c.id===id))throw Error('This channel is already followed.');
+    const exists=l.categories.includes(selected);
+    if(creating&&exists)throw Error('That category already exists. Select it or choose a different name.');
+    if(!creating&&!exists)throw Error('Category changed. Reopen Studio.');
+    if(creating)l.categories.push(selected);
+    l.channels.push({id,title,uploads,category:selected});
+   });
   });
  });
 }
@@ -336,7 +367,7 @@ function studio(){
  '<div class="bar"><h2>Viewer profiles</h2><button data-edit="profile">Add profile</button></div><p class="muted">Names for people using this device.</p>'+profiles.items.map(p=>row(p.name,'profile',p.id)).join('');
  if(can){
   main.insertAdjacentHTML('beforeend','<div class="bar"><h2>YouTube channels</h2><button id="follow-channel">Follow channel</button></div>'+(library.channels||[]).map(c=>'<div class="row"><span>'+esc(c.title)+' · '+esc(c.category)+'</span><button data-unfollow="'+esc(c.id)+'">Unfollow</button></div>').join(''));
-  $('#follow-channel').onclick=addChannel;
+  $('#follow-channel').onclick=()=>addChannel();
   main.querySelectorAll('[data-unfollow]').forEach(b=>b.onclick=async()=>{try{await changeLibrary(l=>{l.channels=(l.channels||[]).filter(c=>c.id!==b.dataset.unfollow)});render()}catch(err){notice(err.message)}});
  }
  const auth=$('#auth');if(auth)auth.onclick=login;
