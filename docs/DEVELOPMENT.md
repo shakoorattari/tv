@@ -61,9 +61,9 @@ The phone sign-in flow works through the app's existing WebView on Android 6.0 a
 
 Only the relay holds the limited-input client's secret. Firebase gets the Google ID token to create its own session. [Google sign-in for limited input devices](https://developers.google.com/identity/gsi/web/guides/devices) · [Cloudflare Worker secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
 
-## Offline video
+## Offline library
 
-Open **Offline** to download a video, or change the device-wide limit (500 MB by default). The app also saves compatible videos as they play. You can turn automatic saving off in Offline settings. Set the limit to zero to clear downloads and stop future saves. The app removes the oldest saved videos first when it needs to make space. The limit covers downloaded video bytes. App files and browser-managed storage are separate, and a browser can clear its own site data. Open Strand TV online at least once to install its offline app files.
+Open **Offline** to download a video or change the device-wide limit (500 MB by default). The app saves YouTube cover thumbnails when you add a title or when its cover loads while browsing online. Saved thumbnails expire after 30 days and are refreshed when you browse again online. The app also saves compatible videos as they play. You can turn automatic video saving off in Offline settings. Set the limit to zero to clear downloads and stop future saves. The limit covers video and thumbnail bytes. Thumbnails are removed first when space runs out. App files and browser-managed storage are separate, and a browser can clear its own site data. Open Strand TV online at least once to install its offline app files.
 
 A downloadable source is a direct HTTPS MP4 or WebM URL that allows a CORS download from the app origin and returns a complete file with a video content type and a Content-Length header. YouTube, Drive previews, OneDrive shares and provider pages need an online connection for playback. Downloads and their limit stay on each device. An account syncs video links and categories. [YouTube developer policies](https://developers.google.com/youtube/terms/developer-policies#e-handling-youtube-data-and-content)
 

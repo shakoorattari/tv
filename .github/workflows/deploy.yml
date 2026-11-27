@@ -45,7 +45,7 @@ jobs:
         env:
           DEVICE_AUTH_URL: ${{ vars.STRAND_DEVICE_AUTH_URL }}
           FIREBASE_WEB_CONFIG: ${{ vars.STRAND_FIREBASE_CONFIG }}
-          YOUTUBE_BROWSER_KEY: ${{ vars.STRAND_YOUTUBE_API_KEY }}
+          YOUTUBE_BROWSER_KEY: ${{ secrets.STRAND_YOUTUBE_API_KEY }}
         run: |
           node --input-type=module <<'JS'
           import {appendFileSync} from 'node:fs';

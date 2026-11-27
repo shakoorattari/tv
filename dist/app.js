@@ -30,7 +30,9 @@ if (downloadLink && (isAndroid || AppInstall.apple)) downloadLink.hidden = true;
 const main=$('#main'),modal=$('#modal'),body=$('#body');
 const inPersonal=()=>Boolean(user && read('strand.library.view.'+user.uid,'shared')==='personal');
 const owner=()=>user?'account:'+user.uid:'device:'+profiles.active;
-let offline={config:{limit:500,auto:true},used:0,videos:[]},offlineBusy=false,offlineError='',offlineMessage='',offlineSettingsStatus=false;
+let offline={config:{limit:500,auto:true},used:0,videos:[],thumbnails:[]},offlineBusy=false,offlineError='',offlineMessage='',offlineSettingsStatus=false;
+const pendingThumbnails=new Map();
+let savingThumbnails=false;
 function selectLibrary(view){
  if(!user)return;
  localStorage.setItem('strand.library.view.'+user.uid,JSON.stringify(view));
@@ -50,9 +52,17 @@ function source(raw){
  if(h==='drive.google.com'&&(id=p.match(/\/file\/d\/([\w-]+)/)?.[1]||u.searchParams.get('id'))&&/^[\w-]+$/.test(id)){let v=new URL('https://drive.google.com/file/d/'+id+'/preview');if(u.searchParams.has('resourcekey'))v.searchParams.set('resourcekey',u.searchParams.get('resourcekey'));return {name:'Google Drive',embed:v.href}}
  if(/\.(mp4|webm)$/i.test(p))return {name:'Direct video',media:u.href};
  return {name:h==='1drv.ms'||h==='onedrive.live.com'||h.endsWith('.sharepoint.com')?'OneDrive':'Web link'};}
-function cover(v){
+function coverId(v){
  const id=youtubeVideoId(v.url);
- if(id && (v.art==='youtube' || v.coverMode!=='manual'))return 'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';
+ return v.art==='youtube'||v.coverMode!=='manual'?id:'';
+}
+function cover(v){
+ const id=coverId(v);
+ if(id){
+  if(navigator.onLine)return 'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';
+  const cached=offline.thumbnails?.find(item=>item.thumbnail===id);
+  if(cached)return cached.key;
+ }
  return './art/'+(['aurora','coast','bloom'].includes(v.art)?v.art:'aurora')+'.svg'}
 function notice(s){$('#status').textContent=s;setTimeout(()=>{if($('#status').textContent===s)$('#status').textContent=''},4000)}
 function show(title,html){if(!modal.open)dialogOrigin=document.activeElement;$('#modalTitle').textContent=title;body.innerHTML=html;if(!modal.open)modal.showModal();}
@@ -67,13 +77,15 @@ function render(){
  if(page==='studio')return studio();
  if(page==='about')return Releases.page(main);
  if(page==='offline')return offlinePage();
- const first=library.videos[0],videos=library.videos.filter(v=>!filter||v.category===filter);
+ const titles=ChannelFeeds.videos(library);
+ refreshChannels();
+ const first=titles[0],videos=titles.filter(v=>!filter||v.category===filter);
  main.innerHTML=(page==='home'&&first?'<section class="hero" style="background-image:url('+cover(first)+')"><div><div class="eyebrow">◆ &nbsp; Featured film</div><h1>'+esc(first.title)+'</h1><p>'+esc(first.description)+'</p><button class="primary" data-play="'+esc(first.id)+'">▶ &nbsp; Watch now</button></div></section>':'<div class="page"><div class="eyebrow">Strand TV</div><h1>'+ (inPersonal()?'My library':'Video library') +'</h1></div>')+
  ((inPersonal()?personalError:cloudError)?'<p class="err">'+esc(inPersonal()?personalError:cloudError)+'</p>':'')+
- '<div class="bar"><h2>'+ (page==='home'?'Explore the collection':'Browse by category')+'</h2><span>'+videos.length+' titles</span></div><div class="filters">'+['',...library.categories].map(c=>'<button aria-pressed="'+(filter===c)+'" class="'+(filter===c?'active':'')+'" data-filter="'+esc(c)+'">'+esc(c||'All titles')+'</button>').join('')+'</div><div class="grid">'+videos.map(v=>'<button class="card" data-play="'+esc(v.id)+'"><div class="thumb"><img alt="" src="'+cover(v)+'"><span class="tag">'+esc(source(v.url).name)+'</span></div><strong>'+esc(v.title)+'</strong><small>'+esc(v.category)+'</small></button>').join('')+'</div>'+(!videos.length?'<p class="empty">No videos in this collection yet.</p>':'');
+ '<div class="bar"><h2>'+ (page==='home'?'Explore the collection':'Browse by category')+'</h2><span>'+videos.length+' titles</span></div><div class="filters">'+['',...library.categories].map(c=>'<button aria-pressed="'+(filter===c)+'" class="'+(filter===c?'active':'')+'" data-filter="'+esc(c)+'">'+esc(c||'All titles')+'</button>').join('')+'</div><div class="grid">'+videos.map(v=>'<button class="card" data-play="'+esc(v.id)+'"><div class="thumb"><img alt="" loading="lazy" '+(coverId(v)?'data-youtube-cover referrerpolicy="no-referrer" ':'')+'src="'+cover(v)+'"><span class="tag">'+esc(source(v.url).name)+'</span></div><strong>'+esc(v.title)+'</strong><small>'+esc(v.category)+'</small></button>').join('')+'</div>'+(!videos.length?'<p class="empty">No videos in this collection yet.</p>':'');
 }
 function play(id,origin,downloads=false){
- const selected=downloads?offline.videos.map(video=>({...video,id:video.key})):library.videos;
+ const selected=downloads?offline.videos.map(video=>({...video,id:video.key})):ChannelFeeds.videos(library);
  const visible=selected.filter(v=>downloads||!filter||v.category===filter);
  const list=visible.some(v=>v.id===id)?visible:[selected.find(v=>v.id===id),...visible];
  if(!list[0])return;
@@ -94,15 +106,49 @@ function availableOffline(){
  const saved=new Set(offline.videos.map(video=>video.url));
  return library.videos.filter(video=>source(video.url).media&&!saved.has(video.url));
 }
-function offlineRow(video,saved){
+function rememberThumbnail(video){
+ const thumbnail=coverId(video);
+ if(!thumbnail||!ready||!navigator.onLine||!offline.config.limit||
+    offline.thumbnails?.some(item=>item.thumbnail===thumbnail))return;
+ pendingThumbnails.set(thumbnail,{thumbnail,title:video.title,category:video.category});
+ savePendingThumbnails();
+}
+async function savePendingThumbnails(){
+ if(savingThumbnails)return;
+ savingThumbnails=true;
+ try{
+  while(pendingThumbnails.size&&!offlineBusy&&offline.config.limit&&navigator.onLine){
+   const viewer=owner(),[thumbnail,item]=pendingThumbnails.entries().next().value;
+   pendingThumbnails.delete(thumbnail);
+   const next=await Offline.request('thumbnail',viewer,item).catch(()=>null);
+   if(next&&viewer===owner()&&!offlineBusy){
+    offline=next;
+    if(location.hash==='#offline')offlinePage();
+   }
+  }
+ }finally{
+  savingThumbnails=false;
+ }
+}
+main.addEventListener('load',event=>{
+ const img=event.target;
+ if(!img.hasAttribute('data-youtube-cover')||!img.isConnected)return;
+ const id=img.closest('[data-play]').dataset.play;
+ const video=ChannelFeeds.videos(library).find(item=>item.id===id);
+ if(video)rememberThumbnail(video);
+},true);
+function offlineRow(video){
  const title=esc(video.title);
+ const saved=Boolean(video.key);
  const button=(action,value,label,primary=false)=>'<button type="button" '+(primary?'class="primary" ':'')+
   'data-offline-'+action+'="'+esc(value)+'" aria-label="'+label.replace('%s',()=>title)+'">'+
   ({save:'Save',play:'Play',remove:'Remove'})[action]+'</button>';
- return '<li class="offline-title" data-offline-row="'+esc(video.id)+'"><img src="'+cover(video)+'" alt="" loading="lazy">'+
+ const image=cover(video);
+ const actions=saved?button('play',video.key,'Play %s')+
+  button('remove',video.key,'Remove %s from this device'):button('save',video.id,'Save %s for offline',true);
+ return '<li class="offline-title" data-offline-row="'+esc(video.id)+'"><img src="'+esc(image)+'" alt="" loading="lazy">'+
   '<div class="offline-name"><strong>'+title+'</strong><small>'+esc(saved?formatMB(video.size)+' MB':video.category)+'</small></div>'+
-  '<div class="offline-title-actions">'+(saved?button('play',video.key,'Play %s')+button('remove',video.key,'Remove %s from this device'):
-   button('save',video.id,'Save %s for offline',true))+'</div></li>';
+  (actions?'<div class="offline-title-actions">'+actions+'</div>':'')+'</li>';
 }
 function formatMB(bytes){
  return new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(bytes/1e6);
@@ -110,7 +156,7 @@ function formatMB(bytes){
 function offlinePage(){
  if(!$('#offline-settings')){
   main.innerHTML=`<div class="offline-page">
-   <section class="page"><h1>Offline videos</h1><p class="muted">Save direct MP4 and WebM videos to watch on this device without internet.</p></section>
+   <section class="page"><h1>Offline library</h1><p class="muted">Save direct MP4 and WebM videos to watch on this device without internet.</p></section>
    <div class="offline-layout">
     <div class="offline-collections">
      <p id="offline-status" role="status" aria-atomic="true"></p>
@@ -118,7 +164,7 @@ function offlinePage(){
       <h2 id="offline-saved-heading">Saved videos</h2><div id="offline-saved"></div>
      </section>
      <section class="offline-section" aria-labelledby="offline-available-heading">
-      <h2 id="offline-available-heading">Available to save</h2><div id="offline-available"></div>
+      <h2 id="offline-available-heading">Videos available to save</h2><div id="offline-available"></div>
      </section>
     </div>
     <aside class="offline-storage" aria-labelledby="offline-storage-heading">
@@ -128,7 +174,7 @@ function offlinePage(){
      <form id="offline-settings">
       <label for="offline-limit">Storage limit (MB)</label>
       <input id="offline-limit" name="limit" type="text" inputmode="numeric" pattern="[0-9]+" required aria-describedby="offline-limit-help">
-      <p id="offline-limit-help" class="offline-note">Oldest downloads are removed first when space runs out. A 0 MB limit clears downloads.</p>
+      <p id="offline-limit-help" class="offline-note">Thumbnails are removed first when space runs out. A 0 MB limit clears downloads.</p>
       <label class="offline-check"><input id="offline-auto" name="auto" type="checkbox"> Automatically save compatible videos I play</label>
       <button id="offline-configure">Apply settings</button>
       <p id="offline-settings-status" role="status" aria-atomic="true"></p>
@@ -162,12 +208,12 @@ function offlinePage(){
  const focus=document.activeElement;
  const previous=focus.closest('[data-offline-row]')?.dataset.offlineRow;
  const lists=[
-  ['#offline-saved',videos,true,'No saved videos yet. Save a title below to watch it offline.'],
-  ['#offline-available',available,false,videos.length?'No other compatible videos in this library.':'This library has no direct MP4 or WebM videos to save.'],
+  ['#offline-saved',videos,'No saved videos yet. Save a title below to watch it offline.'],
+  ['#offline-available',available,videos.length?'No other compatible videos in this library.':'This library has no direct MP4 or WebM videos to save.'],
  ];
- for(const [selector,entries,saved,empty] of lists){
+ for(const [selector,entries,empty] of lists){
   const section=$(selector);
-  const html=entries.length?'<ul class="offline-list">'+entries.map(video=>offlineRow(video,saved)).join('')+'</ul>':
+  const html=entries.length?'<ul class="offline-list">'+entries.map(offlineRow).join('')+'</ul>':
    '<p class="offline-empty">'+empty+'</p>';
   if(section.dataset.content!==html){
    section.innerHTML=html;
@@ -187,8 +233,8 @@ function offlinePage(){
  storage.value=used/1e6;
  $('#offline-usage').textContent=formatMB(used)+' MB used of '+formatMB(config.limit*1e6)+' MB';
  const notice=offlineError||offlineMessage;
- const unavailable=config.limit===0?'Set a storage limit above 0 MB to save videos.':
-  !navigator.onLine?'Connect to the internet to save more videos.':'';
+ const unavailable=config.limit===0?'Set a storage limit above 0 MB to save items.':
+  !navigator.onLine?'Connect to the internet to save more items.':'';
  const status=$('#offline-status'),settingsStatus=$('#offline-settings-status');
  const listMessage=(!offlineSettingsStatus&&notice)||unavailable;
  const settingsMessage=offlineSettingsStatus?notice:'';
@@ -197,13 +243,14 @@ function offlinePage(){
  status.classList.toggle('err',!offlineSettingsStatus&&Boolean(offlineError));
  settingsStatus.classList.toggle('err',offlineSettingsStatus&&Boolean(offlineError));
  $('#offline-configure').setAttribute('aria-disabled',String(offlineBusy));
- for(const button of document.querySelectorAll('[data-offline-save],[data-offline-remove]')){
-  button.setAttribute('aria-disabled',String(offlineBusy||('offlineSave'in button.dataset&&(!config.limit||!navigator.onLine))));
+ for(const button of main.querySelectorAll('[data-offline-save],[data-offline-remove]')){
+  const saving=!('offlineRemove'in button.dataset);
+  button.setAttribute('aria-disabled',String(offlineBusy||(saving&&(!config.limit||!navigator.onLine))));
  }
  if(previous&&!focus.isConnected){
   const same=[...main.querySelectorAll('[data-offline-row]')].find(row=>row.dataset.offlineRow===previous);
   const target=same?.querySelector('button[aria-disabled="false"],[data-offline-play]')||
-   main.querySelector('[data-offline-play],[data-offline-save][aria-disabled="false"]')||limit;
+   main.querySelector('[data-offline-play],[data-offline-save][aria-disabled="false"],[data-offline-remove][aria-disabled="false"]')||limit;
   target.focus();
  }
 }
@@ -227,6 +274,15 @@ async function offlineAction(action='list',value,quiet=false){
   const next=await Offline.request(action,viewer,value);
   if(viewer===owner()){
    offline=next;
+   if(action==='list'){
+    const titles=ChannelFeeds.videos(library);
+    for(const img of main.querySelectorAll('[data-youtube-cover]')){
+     const video=titles.find(item=>item.id===img.closest('[data-play]').dataset.play);
+     if(video&&img.getAttribute('src')!==cover(video))img.src=cover(video);
+    }
+    const hero=main.querySelector('.hero');
+    if(hero&&titles.length)hero.style.backgroundImage='url('+cover(titles[0])+')';
+   }
    if(changing&&!quiet)offlineMessage=messages[action][1];
   }
  }catch(err){
@@ -239,10 +295,36 @@ async function offlineAction(action='list',value,quiet=false){
   if(action==='save')await Offline.request('list',viewer).then(next=>{if(viewer===owner())offline=next}).catch(()=>{});
  }finally{
   if(changing)offlineBusy=false;
+  if(!offline.config.limit)pendingThumbnails.clear();
+  else if(changing)savePendingThumbnails();
   if(location.hash==='#offline'&&(viewer===owner()||changing))offlinePage();
  }
 }
 function row(name,type,id){return '<div class="row"><span>'+esc(name)+'</span><button data-edit="'+type+'" data-id="'+esc(id)+'">Edit</button><button data-remove="'+type+'" data-id="'+esc(id)+'">Remove</button></div>'}
+function refreshChannels(){
+ if(document.hidden||!['','#home','#library'].includes(location.hash))return;
+ for(const c of library.channels||[])ChannelFeeds.refresh(c,()=>{
+  if(library.channels?.some(item=>item.id===c.id)&&['','#home','#library'].includes(location.hash))render();
+ });
+}
+setInterval(refreshChannels,60000);
+window.addEventListener('online',refreshChannels);
+document.addEventListener('visibilitychange',refreshChannels);
+function addChannel(){
+ const scope=library,viewer=owner(),personal=inPersonal();
+ if(!scope.categories.length)return notice('Create a category first.');
+ show('Follow YouTube channel','<form><label>Channel URL, @handle or ID<input name="channel" required></label><label>Category<select name="category">'+scope.categories.map(c=>'<option>'+esc(c)+'</option>').join('')+'</select></label><button>Follow channel</button><p class="err" role="alert"></p></form>');
+ submit(async data=>{
+  const channel=await ChannelFeeds.resolve(data.channel);
+  if(viewer!==owner()||personal!==inPersonal())throw Error('Reopen the active library before following a channel.');
+  await changeLibrary(l=>{
+   if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');
+   l.channels ||= [];
+   if(l.channels.some(c=>c.id===channel.id))throw Error('This channel is already followed.');
+   l.channels.push({...channel,category:data.category});
+  });
+ });
+}
 function studio(){
  const local=!window.STRAND_FIREBASE,personal=inPersonal(),can=local||isAdmin||personal;
  const importable=personal&&(read(key,null)||read('strand.catalog.v1',null));
@@ -252,6 +334,11 @@ function studio(){
  (importable?'<button id="import-catalogue">Import device library</button>':'')+'</div>':'')+
  (can?'<div class="bar"><h2>Videos</h2><button data-edit="video">Add video</button></div>'+library.videos.map(v=>row(v.title,'video',v.id)).join('')+'<div class="bar"><h2>Categories</h2><button data-edit="category">Add category</button></div>'+library.categories.map(c=>row(c,'category',c)).join(''):'')+
  '<div class="bar"><h2>Viewer profiles</h2><button data-edit="profile">Add profile</button></div><p class="muted">Names for people using this device.</p>'+profiles.items.map(p=>row(p.name,'profile',p.id)).join('');
+ if(can){
+  main.insertAdjacentHTML('beforeend','<div class="bar"><h2>YouTube channels</h2><button id="follow-channel">Follow channel</button></div>'+(library.channels||[]).map(c=>'<div class="row"><span>'+esc(c.title)+' · '+esc(c.category)+'</span><button data-unfollow="'+esc(c.id)+'">Unfollow</button></div>').join(''));
+  $('#follow-channel').onclick=addChannel;
+  main.querySelectorAll('[data-unfollow]').forEach(b=>b.onclick=async()=>{try{await changeLibrary(l=>{l.channels=(l.channels||[]).filter(c=>c.id!==b.dataset.unfollow)});render()}catch(err){notice(err.message)}});
+ }
  const auth=$('#auth');if(auth)auth.onclick=login;
  const view=$('#catalogue-view');if(view)view.onclick=()=>{selectLibrary(personal?'shared':'personal');$('#catalogue-view').focus()};
  const importButton=$('#import-catalogue');if(importButton)importButton.onclick=importCatalogue;
@@ -287,7 +374,8 @@ function changeProfiles(fn){
 function refreshViewer(){
  StrandPlayer.close();
  if(modal.open&&body.querySelector('form'))modal.close();
- offline={...offline,videos:[]};
+ pendingThumbnails.clear();
+ offline={...offline,videos:[],thumbnails:[]};
  offlineError=offlineMessage='';
  offlineAction();
  filter='';
@@ -308,23 +396,26 @@ function edit(type,id){
  if(type==='profile'){changeProfiles(p=>{const v=p.items.find(v=>v.id===id);if(v)v.name=data.name;else p.items.push({id:crypto.randomUUID(),name:data.name})});return}
  if(scopeAtOpen!==inPersonal())throw Error('The active library changed. Open the editor again.');
  if(type==='video'){source(data.url);data.coverMode=data.art==='youtube'?'auto':'manual';}
- await changeLibrary(l=>{if(type==='category'){if(id&&!l.categories.includes(id))throw Error('Category changed. Reopen Studio.');if(data.name!==id&&l.categories.includes(data.name))throw Error('This category already exists.');if(id){l.categories[l.categories.indexOf(id)]=data.name;l.videos.forEach(v=>{if(v.category===id)v.category=data.name})}else l.categories.push(data.name)}
- else{if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');const v={...data,id:id||crypto.randomUUID()};if(id){const n=l.videos.findIndex(v=>v.id===id);if(n<0)throw Error('This video was removed.');l.videos[n]=v}else l.videos.push(v)}});filter='';});}
-function remove(type,id){const scopeAtOpen=inPersonal();show('Remove '+type,'<form><p>Remove “'+esc(type==='video'?library.videos.find(v=>v.id===id)?.title:type==='profile'?profiles.items.find(p=>p.id===id)?.name:id)+'”?</p><div class="actions"><button>Remove</button></div><p class="err"></p></form>');submit(async()=>{if(type==='profile'){changeProfiles(p=>{if(p.items.length===1)throw Error('Keep at least one viewer profile.');p.items=p.items.filter(v=>v.id!==id);if(p.active===id)p.active=p.items[0].id});return}if(scopeAtOpen!==inPersonal())throw Error('The active library changed. Open the editor again.');await changeLibrary(l=>{if(type==='video')l.videos=l.videos.filter(v=>v.id!==id);else{if(l.videos.some(v=>v.category===id))throw Error('Move or remove videos in this category first.');l.categories=l.categories.filter(c=>c!==id)}});filter='';});}
+ const viewer=owner();
+ await changeLibrary(l=>{if(type==='category'){if(id&&!l.categories.includes(id))throw Error('Category changed. Reopen Studio.');if(data.name!==id&&l.categories.includes(data.name))throw Error('This category already exists.');if(id){l.categories[l.categories.indexOf(id)]=data.name;(l.channels||[]).forEach(c=>{if(c.category===id)c.category=data.name});l.videos.forEach(v=>{if(v.category===id)v.category=data.name})}else l.categories.push(data.name)}
+ else{if(!l.categories.includes(data.category))throw Error('Category changed. Reopen Studio.');const v={...data,id:id||crypto.randomUUID()};if(id){const n=l.videos.findIndex(v=>v.id===id);if(n<0)throw Error('This video was removed.');l.videos[n]=v}else l.videos.push(v)}});
+ if(type==='video'&&viewer===owner())rememberThumbnail(data);
+ filter='';});}
+function remove(type,id){const scopeAtOpen=inPersonal();show('Remove '+type,'<form><p>Remove “'+esc(type==='video'?library.videos.find(v=>v.id===id)?.title:type==='profile'?profiles.items.find(p=>p.id===id)?.name:id)+'”?</p><div class="actions"><button>Remove</button></div><p class="err"></p></form>');submit(async()=>{if(type==='profile'){changeProfiles(p=>{if(p.items.length===1)throw Error('Keep at least one viewer profile.');p.items=p.items.filter(v=>v.id!==id);if(p.active===id)p.active=p.items[0].id});return}if(scopeAtOpen!==inPersonal())throw Error('The active library changed. Open the editor again.');await changeLibrary(l=>{if(type==='video')l.videos=l.videos.filter(v=>v.id!==id);else{if(l.channels?.some(c=>c.category===id))throw Error('Unfollow channels in this category first.');if(l.videos.some(v=>v.category===id))throw Error('Move or remove videos in this category first.');l.categories=l.categories.filter(c=>c!==id)}});filter='';});}
 main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;if('play'in d)play(d.play,b);if('filter'in d){filter=d.filter;render();[...document.querySelectorAll('[data-filter]')].find(b=>b.dataset.filter===filter)?.focus()}if(d.edit)edit(d.edit,d.id);if(d.remove)remove(d.remove,d.id);
  if(d.offlinePlay)play(d.offlinePlay,b,true);
  if(b.getAttribute('aria-disabled')==='true')return;
  if(d.offlineRemove)offlineAction('remove',d.offlineRemove);
  if(d.offlineSave){
-  const video=availableOffline().find(video=>video.id===d.offlineSave);
-  if(video){
+  const item=availableOffline().find(video=>video.id===d.offlineSave);
+  if(item){
    navigator.storage?.persist?.().catch(()=>{});
-   offlineAction('save',downloadDetails(video));
+   offlineAction('save',downloadDetails(item));
   }
  }
 };
 $('#profile').onclick=()=>{
- const account=user?'<p>'+esc(user.displayName||user.email||'Signed in')+'</p><div class="actions"><button id="library-view">'+(inPersonal()?'Open shared library':'Open my library')+'</button><button id="sign-out">Sign out</button></div><p class="muted">Signing out removes this account’s offline videos from this device.</p>':
+ const account=user?'<p>'+esc(user.displayName||user.email||'Signed in')+'</p><div class="actions"><button id="library-view">'+(inPersonal()?'Open shared library':'Open my library')+'</button><button id="sign-out">Sign out</button></div><p class="muted">Signing out removes this account’s offline downloads from this device.</p>':
  cloud?'<div class="actions" id="google-actions"><button id="google-sign-in" class="primary">Continue with Google</button>'+
   (isAndroid&&window.STRAND_DEVICE_AUTH_URL?'<button id="google-phone">Use a phone or computer</button>':'')+'</div>':
  window.STRAND_FIREBASE?'<p class="muted">Account sign-in is unavailable. Check your connection and try again.</p>':'';
@@ -414,7 +505,8 @@ function watchForUpdates(){
 }
 if(window.STRAND_BUILD)watchForUpdates();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)offlineAction()});
-for(const event of ['online','offline'])window.addEventListener(event,()=>{if(location.hash==='#offline')offlinePage()});
+for(const event of ['online','offline'])window.addEventListener(event,()=>{if(location.hash==='#offline')offlinePage();else if(['','#home','#library'].includes(location.hash))render()});
+window.addEventListener('online',savePendingThumbnails);
 document.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
  const active=document.activeElement;
  const offlineControl=active.id==='offline-auto'||(active.id==='offline-limit'&&['ArrowUp','ArrowDown'].includes(e.key));

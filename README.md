@@ -1,5 +1,5 @@
 # Strand TV
-A lightweight TV-friendly video library with a browser-based editor and optional Google profiles with Firebase library sync. The Offline page saves compatible direct videos on each device.
+A lightweight TV-friendly video library with a browser-based editor and optional Google profiles with Firebase library sync. The Offline page saves compatible direct videos on each device. Library titles automatically keep their cover artwork for offline browsing.
 
 Serve the dist directory with `python3 -m http.server 8080 --directory dist`, then open http://localhost:8080/. Deploy the contents of dist under /tv/ on a static host. See [the development guide](docs/DEVELOPMENT.md) for Firebase setup, Android TV architecture and deployment options.
 
@@ -19,7 +19,7 @@ The hosted Worker serves the web app and its same-origin /api/youtube metadata e
 
 Push to main to build and publish. Pull requests validate the static client. In Settings → Pages, choose GitHub Actions as the source. The project inherits the account site's custom domain at /tv/.
 
-For full YouTube description lookup on Pages, set the Actions repository variable STRAND_YOUTUBE_API_KEY to a browser key restricted to the YouTube Data API v3 and the production site's HTTP referrers. The published client contains the browser key. Without it, YouTube thumbnails and oEmbed title lookup are available and descriptions can be entered manually.
+For channel updates and full YouTube description lookup on Pages, set the GitHub Actions repository secret `STRAND_YOUTUBE_API_KEY`. The production workflow injects it into the published browser configuration, where visitors can see it. Restrict the key to YouTube Data API v3 and the production site’s origin. For localhost testing, use a separate key restricted to your local origin and keep local credentials out of commits.
 
 Changes to main require a pull request approved by @shakoorattari. New commits dismiss stale approvals. Only a push to main can publish.
 

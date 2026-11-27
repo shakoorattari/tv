@@ -36,7 +36,7 @@ Every pull request that changes `dist/` needs a new web entry. Every pull reques
 | Setting | Purpose |
 |---|---|
 | Environment secrets `TV_KEYSTORE`, `TV_KEY_PASSWORD` | Base64 PKCS#12 and its password. Alias `strandtv`. Used by the deploy job in the restricted `github-pages` environment. |
-| Repository variable `STRAND_YOUTUBE_API_KEY` | Optional browser key for title and description lookup. Restrict to the YouTube Data API and intended HTTP referrers because it ships to the client. |
+| Actions repository secret `STRAND_YOUTUBE_API_KEY` | Optional browser key for channel updates and title and description lookup. Restrict to the YouTube Data API and intended HTTP referrers because it ships to the client. |
 | Repository variable `STRAND_FIREBASE_CONFIG` | Public Firebase Web SDK configuration written into the site build. Firestore Security Rules enforce data access. |
 | Repository variable `STRAND_GOOGLE_CLIENT_ID` | Public OAuth Web client ID compiled into the Android build as its fixed Google sign-in audience. OAuth client secrets stay out of these variables and the release. |
 | Signing backup | The maintainer holds the original release identity in the checkout’s ignored `.android-signing/` directory. Keep a protected recoverable copy. Never commit the keystore, private key or password. |
