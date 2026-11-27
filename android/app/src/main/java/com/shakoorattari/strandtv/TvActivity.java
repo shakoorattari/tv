@@ -5,16 +5,17 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -24,13 +25,34 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.credentials.Credential;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.CustomCredential;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialException;
+import androidx.webkit.JavaScriptReplyProxy;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+
+import org.json.JSONObject;
+
+import java.util.Collections;
+
 public final class TvActivity extends Activity {
-    private static final String HOME = "https://shakoorattari.com/tv/";
+    private static final String ORIGIN = "https://shakoorattari.com";
+    private static final String HOME = ORIGIN + "/tv/";
     private FrameLayout screen;
     private WebView browser;
     private View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private Updater updater;
+    private CancellationSignal googleRequest;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -49,7 +71,6 @@ public final class TvActivity extends Activity {
             });
         }
         applySystemBars();
-        browser.addJavascriptInterface(new AppBridge(), "StrandApp");
         WebSettings settings = browser.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -88,17 +109,83 @@ public final class TvActivity extends Activity {
             }
             @Override public void onHideCustomView() { leaveFullscreen(); }
         });
+        configureWebBridges();
         browser.loadUrl(HOME);
         browser.requestFocus();
         updater = new Updater(this);
     }
 
-    /** Called from the web player's full-screen button. */
-    private final class AppBridge {
-        @JavascriptInterface public void setLandscape(boolean landscape) {
-            runOnUiThread(() -> setRequestedOrientation(landscape
-                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_FULL_USER));
+    private void configureWebBridges() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
+        WebViewCompat.addWebMessageListener(browser, "StrandApp",
+            Collections.singleton(ORIGIN), (view, message, origin, mainFrame, reply) -> {
+                if (!mainFrame || !isStrandPage(view.getUrl())) return;
+                String action = message.getData();
+                if ("landscape".equals(action) || "auto".equals(action)) {
+                    setRequestedOrientation("landscape".equals(action)
+                        ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+                }
+            });
+        if (BuildConfig.GOOGLE_CLIENT_ID.isEmpty()) return;
+        WebViewCompat.addWebMessageListener(browser, "StrandGoogle",
+            Collections.singleton(ORIGIN), (view, message, origin, mainFrame, reply) -> {
+                if (!mainFrame || !isStrandPage(view.getUrl()) || !"sign-in".equals(message.getData())) return;
+                signInWithGoogle(BuildConfig.GOOGLE_CLIENT_ID, reply);
+            });
+    }
+
+    private boolean isStrandPage(String url) {
+        if (url == null) return false;
+        Uri page = Uri.parse(url);
+        String path = page.getEncodedPath();
+        return ORIGIN.equals(page.getScheme() + "://" + page.getEncodedAuthority())
+            && ("/tv/".equals(path) || "/tv/index.html".equals(path));
+    }
+
+    private void signInWithGoogle(String clientId, JavaScriptReplyProxy reply) {
+        if (googleRequest != null) {
+            googleError(reply, "A Google sign-in is already open.");
+            return;
         }
+        boolean tv = getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+        if (tv && Build.VERSION.SDK_INT < 34) {
+            googleError(reply, "Google sign-in on TV requires Android 14 or later.");
+            return;
+        }
+        GetSignInWithGoogleOption option = new GetSignInWithGoogleOption.Builder(clientId).build();
+        GetCredentialRequest request = new GetCredentialRequest.Builder().addCredentialOption(option).build();
+        googleRequest = new CancellationSignal();
+        CredentialManager.create(this).getCredentialAsync(this, request, googleRequest, this::runOnUiThread,
+            new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                @Override public void onResult(GetCredentialResponse result) {
+                    googleRequest = null;
+                    if (isDestroyed()) return;
+                    Credential credential = result.getCredential();
+                    if (credential instanceof CustomCredential
+                            && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(credential.getType())) {
+                        try {
+                            String token = GoogleIdTokenCredential.createFrom(credential.getData()).getIdToken();
+                            reply.postMessage("{\"token\":" + JSONObject.quote(token) + "}");
+                            return;
+                        } catch (Exception ignored) {
+                            googleError(reply, "Couldn’t read the Google credential.");
+                            return;
+                        }
+                    }
+                    googleError(reply, "Google didn’t return an account credential.");
+                }
+
+                @Override public void onError(GetCredentialException error) {
+                    googleRequest = null;
+                    if (!isDestroyed()) googleError(reply, error instanceof GetCredentialCancellationException
+                        ? "Google sign-in was cancelled."
+                        : "Google sign-in is unavailable. Check Google Play services and the app’s Firebase setup.");
+                }
+            });
+    }
+
+    private void googleError(JavaScriptReplyProxy reply, String message) {
+        reply.postMessage("{\"error\":" + JSONObject.quote(message) + "}");
     }
 
     /** Like YouTube: status and navigation bars in portrait, immersive full screen in landscape. */
@@ -167,6 +254,7 @@ public final class TvActivity extends Activity {
         browser.evaluateJavascript("window.strandResume&&window.strandResume()", null);
     }
     @Override protected void onDestroy() {
+        if (googleRequest != null) googleRequest.cancel();
         updater.close();
         leaveFullscreen();
         screen.removeView(browser);

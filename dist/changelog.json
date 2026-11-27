@@ -1,6 +1,16 @@
 {
   "web": [
     {
+      "version": "1.8.0",
+      "date": "2026-11-27",
+      "changes": [
+        "Sign in with Google to sync a private library of videos and categories across devices.",
+        "Save compatible direct videos for offline playback with a configurable device storage limit.",
+        "Choose offline videos directly from a list, see storage usage at a glance, and use arrow keys to move between controls.",
+        "Signing out removes the account’s downloaded videos and private library snapshot from that device."
+      ]
+    },
+    {
       "version": "1.7.0",
       "date": "2026-11-27",
       "changes": [
@@ -76,6 +86,13 @@
     }
   ],
   "android": [
+    {
+      "version": "1.5.0",
+      "date": "2026-11-27",
+      "changes": [
+        "Added native Google sign-in on compatible Android devices and Android TVs."
+      ]
+    },
     {
       "version": "1.4.0",
       "date": "2026-11-27",

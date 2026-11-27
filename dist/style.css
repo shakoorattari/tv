@@ -106,3 +106,50 @@ footer .version-link:hover{color:#edf4ed}
 .app-banner span{font-size:14px;color:#bcd0c9}
 .install-steps{margin:0 0 12px;padding-left:22px;line-height:1.6}
 .install-steps li{margin:4px 0}
+
+.offline-page{max-width:1160px;margin:auto}
+.offline-page .page{padding-bottom:22px}
+.offline-page .page p{max-width:52ch;margin:6px 0 0}
+.offline-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(248px,320px);align-items:start;gap:clamp(22px,4vw,56px)}
+.offline-collections{min-width:0}
+.offline-section+.offline-section{margin-top:30px}
+.offline-section h2,.offline-storage h2{font-size:22px;letter-spacing:-.02em;margin:0 0 12px}
+.offline-empty{margin:0;padding:16px 18px;border:1px dashed #3b4d4c;border-radius:12px;color:#b5c5c1;line-height:1.5}
+.offline-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.offline-title{display:grid;grid-template-columns:88px minmax(0,1fr) auto;align-items:center;gap:14px;padding:10px 12px;background:#142125;border:1px solid #304041;border-radius:12px}
+.offline-title img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:#213431}
+.offline-name{display:grid;gap:3px;overflow-wrap:anywhere}
+.offline-name small,.offline-note{color:#b5c5c1;font-size:14px}
+.offline-title-actions{display:flex;flex-wrap:wrap;justify-content:end;gap:8px}
+.offline-page button{min-height:44px}
+.offline-page button[aria-disabled=true]{opacity:.58;cursor:default}
+.offline-storage{background:#152327;border:1px solid #344849;border-radius:14px;padding:20px}
+.offline-storage h2{margin-bottom:5px}
+#offline-usage{font-variant-numeric:tabular-nums;color:#dce8e2}
+#offline-capacity{display:block;width:100%;height:10px;margin:12px 0 18px;border:0;border-radius:8px;appearance:none;accent-color:#baf3a6;background:#334443}
+#offline-capacity::-webkit-progress-bar{background:#334443;border-radius:8px}
+#offline-capacity::-webkit-progress-value{background:#baf3a6;border-radius:8px}
+#offline-settings{border-top:1px solid #344849;padding-top:15px}
+#offline-settings label{margin-bottom:6px}
+#offline-limit{width:8.5rem;min-height:44px}
+.offline-note{margin:8px 0 14px}
+.offline-check{display:flex;gap:10px;align-items:flex-start;min-height:44px;padding:4px 0 10px;cursor:pointer}
+.offline-check input{flex:none;width:19px;height:19px;margin:2px 0 0;padding:0;accent-color:#baf3a6}
+#offline-status:empty,#offline-settings-status:empty{height:0}
+#offline-status:not(:empty){padding:10px 14px;margin-bottom:16px;border-radius:8px;background:#20342e;color:#d9f9d3;overflow-wrap:anywhere}
+#offline-settings-status:not(:empty){margin-top:10px;font-size:14px;color:#d9f9d3;overflow-wrap:anywhere}
+#offline-settings-status.err{color:#ffcbad}
+#offline-status.err{background:#3a2825;color:#ffcbad}
+@media(max-width:720px){
+ .offline-layout{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:460px){
+ .offline-title{grid-template-columns:66px minmax(0,1fr);gap:8px 10px}
+ .offline-title-actions{grid-column:2;justify-content:start}
+ .offline-title img{align-self:start;margin-top:3px}
+}
+
+@media(max-width:500px){
+ header{flex-wrap:wrap;justify-content:space-between}
+ header nav{order:1;width:100%;justify-content:space-between;flex-wrap:wrap}
+}

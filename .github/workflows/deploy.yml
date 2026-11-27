@@ -39,13 +39,16 @@ jobs:
           cp -R dist/art _site/art
       - name: Check changelog and version bumps
         run: node scripts/check-changelog.mjs ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
-      - name: Configure optional YouTube metadata lookup
+      - name: Configure optional Firebase and YouTube services
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
+          FIREBASE_WEB_CONFIG: ${{ vars.STRAND_FIREBASE_CONFIG }}
           YOUTUBE_BROWSER_KEY: ${{ vars.STRAND_YOUTUBE_API_KEY }}
         run: |
           node --input-type=module <<'JS'
           import {appendFileSync} from 'node:fs';
+          const firebase = process.env.FIREBASE_WEB_CONFIG;
+          if (firebase) appendFileSync('_site/config.js', '\nwindow.STRAND_FIREBASE = ' + JSON.stringify(JSON.parse(firebase)) + ';\n');
           const key = process.env.YOUTUBE_BROWSER_KEY;
           if (key) appendFileSync('_site/config.js', '\nwindow.STRAND_YOUTUBE_API_KEY = ' + JSON.stringify(key) + ';\n');
           JS
@@ -57,6 +60,8 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build Android TV packages
+        env:
+          STRAND_GOOGLE_CLIENT_ID: ${{ vars.STRAND_GOOGLE_CLIENT_ID }}
         run: gradle --project-dir android :app:assembleDebug :app:assembleRelease :app:lintDebug
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'pull_request'
@@ -79,6 +84,7 @@ jobs:
           JS
           printf '\nwindow.STRAND_BUILD = "%s";\nwindow.STRAND_VERSION = "%s";\n' "$GITHUB_SHA" \
             "$(node -p "require('./dist/changelog.json').web[0].version")" >> _site/config.js
+          sed -i "s/STRAND_SW_BUILD/${GITHUB_SHA::7}/g" _site/sw.js
           # Per-build script and style URLs, so a reload never mixes a new page with cached old files.
           sed -i -E "s#(src|href)=\"\./([a-z-]+\.(js|css))\"#\1=\"./\2?v=${GITHUB_SHA::7}\"#g" _site/index.html
       - uses: actions/upload-artifact@v4
