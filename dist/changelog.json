@@ -1,6 +1,13 @@
 {
   "web": [
     {
+      "version": "1.8.1",
+      "date": "2026-11-27",
+      "changes": [
+        "Fixed the Google sign-in popup in web browsers."
+      ]
+    },
+    {
       "version": "1.8.0",
       "date": "2026-11-27",
       "changes": [
