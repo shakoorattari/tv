@@ -5,12 +5,14 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -24,6 +26,25 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import androidx.credentials.Credential;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.CustomCredential;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialException;
+import androidx.webkit.JavaScriptReplyProxy;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
+
+import org.json.JSONObject;
+
+import java.util.Collections;
+
 public final class TvActivity extends Activity {
     private static final String HOME = "https://shakoorattari.com/tv/";
     private FrameLayout screen;
@@ -31,6 +52,7 @@ public final class TvActivity extends Activity {
     private View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private Updater updater;
+    private CancellationSignal googleRequest;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -88,9 +110,73 @@ public final class TvActivity extends Activity {
             }
             @Override public void onHideCustomView() { leaveFullscreen(); }
         });
+        configureGoogleSignIn();
         browser.loadUrl(HOME);
         browser.requestFocus();
         updater = new Updater(this);
+    }
+
+    private void configureGoogleSignIn() {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
+        WebViewCompat.addWebMessageListener(browser, "StrandGoogle",
+            Collections.singleton("https://shakoorattari.com"), (view, message, origin, mainFrame, reply) -> {
+                String current = view.getUrl();
+                if (!mainFrame || current == null) return;
+                String path = Uri.parse(current).getPath();
+                if (!"/tv/".equals(path) && !"/tv/index.html".equals(path)) return;
+                String clientId = message.getData();
+                if (clientId == null || !clientId.matches("[A-Za-z0-9-]+[.]apps[.]googleusercontent[.]com")) {
+                    googleError(reply, "Android Google sign-in needs a valid web client ID.");
+                    return;
+                }
+                signInWithGoogle(clientId, reply);
+            });
+    }
+
+    private void signInWithGoogle(String clientId, JavaScriptReplyProxy reply) {
+        if (googleRequest != null) {
+            googleError(reply, "A Google sign-in is already open.");
+            return;
+        }
+        boolean tv = getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+        if (tv && Build.VERSION.SDK_INT < 34) {
+            googleError(reply, "Google sign-in on TV requires Android 14 or later.");
+            return;
+        }
+        GetSignInWithGoogleOption option = new GetSignInWithGoogleOption.Builder(clientId).build();
+        GetCredentialRequest request = new GetCredentialRequest.Builder().addCredentialOption(option).build();
+        googleRequest = new CancellationSignal();
+        CredentialManager.create(this).getCredentialAsync(this, request, googleRequest, this::runOnUiThread,
+            new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                @Override public void onResult(GetCredentialResponse result) {
+                    googleRequest = null;
+                    if (isDestroyed()) return;
+                    Credential credential = result.getCredential();
+                    if (credential instanceof CustomCredential
+                            && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(credential.getType())) {
+                        try {
+                            String token = GoogleIdTokenCredential.createFrom(credential.getData()).getIdToken();
+                            reply.postMessage("{\"token\":" + JSONObject.quote(token) + "}");
+                            return;
+                        } catch (Exception ignored) {
+                            googleError(reply, "Couldn’t read the Google credential.");
+                            return;
+                        }
+                    }
+                    googleError(reply, "Google didn’t return an account credential.");
+                }
+
+                @Override public void onError(GetCredentialException error) {
+                    googleRequest = null;
+                    if (!isDestroyed()) googleError(reply, error instanceof GetCredentialCancellationException
+                        ? "Google sign-in was cancelled."
+                        : "Google sign-in is unavailable. Check Google Play services and the app’s Firebase setup.");
+                }
+            });
+    }
+
+    private void googleError(JavaScriptReplyProxy reply, String message) {
+        reply.postMessage("{\"error\":" + JSONObject.quote(message) + "}");
     }
 
     /** Called from the web player's full-screen button. */
@@ -167,6 +253,7 @@ public final class TvActivity extends Activity {
         browser.evaluateJavascript("window.strandResume&&window.strandResume()", null);
     }
     @Override protected void onDestroy() {
+        if (googleRequest != null) googleRequest.cancel();
         updater.close();
         leaveFullscreen();
         screen.removeView(browser);

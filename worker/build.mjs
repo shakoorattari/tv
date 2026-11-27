@@ -3,7 +3,7 @@ import {mkdir, readdir, readFile, writeFile} from 'node:fs/promises';
 import {extname} from 'node:path';
 const root = new URL('../dist/', import.meta.url);
 const assets = {};
-const types = {'.js':'text/javascript','.html':'text/html','.svg':'image/svg+xml','.css':'text/css'};
+const types = {'.js':'text/javascript','.html':'text/html','.svg':'image/svg+xml','.css':'text/css','.json':'application/json'};
 async function collect(prefix) {
   for (const entry of await readdir(new URL(prefix, root), {withFileTypes:true})) {
     const path = prefix + entry.name;

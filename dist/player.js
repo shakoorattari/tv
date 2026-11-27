@@ -153,7 +153,7 @@ const StrandPlayer = (() => {
   const adapters = {youtube, file, frame};
   let session = null;
 
-  function create(items, all, start, label, onClose) {
+  function create(items, all, start, label, onClose, onPlay) {
     const root = document.createElement('div');
     root.id = 'fs-player';
     root.className = 'sp';
@@ -308,6 +308,7 @@ const StrandPlayer = (() => {
     }
 
     function handle(event, data) {
+      if (event === 'playing' && !started) onPlay?.(item);
       if (!ui.panel.hidden && event !== 'error') return;
       if (event === 'playing') {
         started = true;
@@ -637,9 +638,9 @@ const StrandPlayer = (() => {
   }
 
   return {
-    open({items, all = items, index = 0, label = '', onClose}) {
+    open({items, all = items, index = 0, label = '', onClose, onPlay}) {
       session?.close();
-      session = create(items, all, index, label, onClose);
+      session = create(items, all, index, label, onClose, onPlay);
     },
     close: () => session?.close(),
     isOpen: () => !!session,

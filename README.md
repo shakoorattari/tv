@@ -1,5 +1,5 @@
 # Strand TV
-A lightweight TV-friendly video library with a browser-based editor and optional Firebase catalogue.
+A lightweight TV-friendly video library with a browser-based editor and optional Google profiles with Firebase library sync. The Offline page saves compatible direct videos on each device.
 
 Serve the dist directory with `python3 -m http.server 8080 --directory dist`, then open http://localhost:8080/. Deploy the contents of dist under /tv/ on a static host. See [the development guide](docs/DEVELOPMENT.md) for Firebase setup, Android TV architecture and deployment options.
 
