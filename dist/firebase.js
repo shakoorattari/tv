@@ -16,9 +16,9 @@ function cache(key, value) {
   catch {}
 }
 
-function androidCredential(clientId) {
+function androidCredential() {
   const bridge = window.StrandGoogle;
-  if (!bridge || !clientId) throw Error('Google sign-in on Android needs the updated app and Android sign-in setup.');
+  if (!bridge) throw Error('Google sign-in on Android needs the updated app and Android sign-in setup.');
   return new Promise((resolve, reject) => {
     bridge.onmessage = event => {
       bridge.onmessage = null;
@@ -26,7 +26,7 @@ function androidCredential(clientId) {
       if (result.token) resolve(GoogleAuthProvider.credential(result.token));
       else reject(Error(result.error));
     };
-    bridge.postMessage(clientId);
+    bridge.postMessage('sign-in');
   });
 }
 
@@ -63,6 +63,9 @@ export function connect(config, seed, onChange) {
     stopRole();
     stopPersonal();
     const uid = user?.uid;
+    if (state.user && state.user.uid !== uid) {
+      try { localStorage.removeItem(personalKey(state.user.uid)); } catch {}
+    }
     state.user = user;
     state.isAdmin = false;
     state.personal = uid ? cached(personalKey(uid), empty) : empty;
@@ -73,7 +76,11 @@ export function connect(config, seed, onChange) {
       if (auth.currentUser?.uid !== uid) return;
       state.isAdmin = snap.exists();
       publish();
-    }, () => {});
+    }, () => {
+      if (auth.currentUser?.uid !== uid) return;
+      state.isAdmin = false;
+      publish();
+    });
     stopPersonal = onSnapshot(personal(uid), {includeMetadataChanges: true}, snap => {
       if (auth.currentUser?.uid !== uid || (snap.metadata.fromCache && !snap.exists())) return;
       state.personal = snap.exists() ? snap.data() : empty;
@@ -90,7 +97,7 @@ export function connect(config, seed, onChange) {
   return {
     login: (email, password) => signInWithEmailAndPassword(auth, email, password),
     async google(android) {
-      if (android) return signInWithCredential(auth, await androidCredential(window.STRAND_GOOGLE_CLIENT_ID));
+      if (android) return signInWithCredential(auth, await androidCredential());
       return signInWithPopup(auth, new GoogleAuthProvider());
     },
     logout: () => signOut(auth),

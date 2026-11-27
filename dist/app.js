@@ -324,7 +324,7 @@ main.onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.datas
  }
 };
 $('#profile').onclick=()=>{
- const account=user?'<p>'+esc(user.displayName||user.email||'Signed in')+'</p><div class="actions"><button id="library-view">'+(inPersonal()?'Open shared library':'Open my library')+'</button><button id="sign-out">Sign out</button></div>':
+ const account=user?'<p>'+esc(user.displayName||user.email||'Signed in')+'</p><div class="actions"><button id="library-view">'+(inPersonal()?'Open shared library':'Open my library')+'</button><button id="sign-out">Sign out</button></div><p class="muted">Signing out removes this account’s offline videos from this device.</p>':
  cloud?'<button id="google-sign-in" class="primary">Continue with Google</button>':
  window.STRAND_FIREBASE?'<p class="muted">Account sign-in is unavailable. Check your connection and try again.</p>':'';
  show('Viewer profiles',account+'<p class="err" id="account-error" role="alert"></p>'+
@@ -403,7 +403,12 @@ if(window.STRAND_FIREBASE){
    sharedLibrary=state.library;
    personalLibrary=state.personal;
    library=inPersonal()?personalLibrary:sharedLibrary;
-   if(previous!==owner())refreshViewer();
+   if(previous!==owner()){
+    if(previous.startsWith('account:')){
+     Offline.request('forget',previous).catch(()=>notice('Couldn’t clear this account’s downloads. You can clear them in your browser settings.'));
+    }
+    refreshViewer();
+   }
    render();
   });
   render();

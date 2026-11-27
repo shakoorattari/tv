@@ -201,6 +201,10 @@ const StrandPlayer = (() => {
     // Portrait shows the video on top with controls and Up next below, always visible, like YouTube.
     const tall = matchMedia('(orientation: portrait)');
     const app = window.StrandApp;
+    const setLandscape = enabled => {
+      if (app.postMessage) app.postMessage(enabled ? 'landscape' : 'auto');
+      else app.setLandscape(enabled); // Older installed APKs still use the original bridge.
+    };
     let forcedLandscape = false;
     const state = () => root.dataset.state;
     const setState = s => { root.dataset.state = s; };
@@ -458,7 +462,7 @@ const StrandPlayer = (() => {
     function toggleFull() {
       if (app) {
         forcedLandscape = !forcedLandscape;
-        app.setLandscape(forcedLandscape);
+        setLandscape(forcedLandscape);
         return updateFull();
       }
       if (document.fullscreenElement) return void document.exitFullscreen().catch(() => {});
@@ -611,7 +615,7 @@ const StrandPlayer = (() => {
       window.removeEventListener('keydown', onKey, true);
       tall.removeEventListener('change', turned);
       document.removeEventListener('fullscreenchange', updateFull);
-      if (forcedLandscape) app.setLandscape(false);
+      if (forcedLandscape) setLandscape(false);
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       adapter?.destroy();
       root.remove();

@@ -16,7 +16,6 @@ import android.os.CancellationSignal;
 import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
-import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -46,7 +45,8 @@ import org.json.JSONObject;
 import java.util.Collections;
 
 public final class TvActivity extends Activity {
-    private static final String HOME = "https://shakoorattari.com/tv/";
+    private static final String ORIGIN = "https://shakoorattari.com";
+    private static final String HOME = ORIGIN + "/tv/";
     private FrameLayout screen;
     private WebView browser;
     private View fullscreen;
@@ -71,7 +71,6 @@ public final class TvActivity extends Activity {
             });
         }
         applySystemBars();
-        browser.addJavascriptInterface(new AppBridge(), "StrandApp");
         WebSettings settings = browser.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -110,27 +109,37 @@ public final class TvActivity extends Activity {
             }
             @Override public void onHideCustomView() { leaveFullscreen(); }
         });
-        configureGoogleSignIn();
+        configureWebBridges();
         browser.loadUrl(HOME);
         browser.requestFocus();
         updater = new Updater(this);
     }
 
-    private void configureGoogleSignIn() {
+    private void configureWebBridges() {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
-        WebViewCompat.addWebMessageListener(browser, "StrandGoogle",
-            Collections.singleton("https://shakoorattari.com"), (view, message, origin, mainFrame, reply) -> {
-                String current = view.getUrl();
-                if (!mainFrame || current == null) return;
-                String path = Uri.parse(current).getPath();
-                if (!"/tv/".equals(path) && !"/tv/index.html".equals(path)) return;
-                String clientId = message.getData();
-                if (clientId == null || !clientId.matches("[A-Za-z0-9-]+[.]apps[.]googleusercontent[.]com")) {
-                    googleError(reply, "Android Google sign-in needs a valid web client ID.");
-                    return;
+        WebViewCompat.addWebMessageListener(browser, "StrandApp",
+            Collections.singleton(ORIGIN), (view, message, origin, mainFrame, reply) -> {
+                if (!mainFrame || !isStrandPage(view.getUrl())) return;
+                String action = message.getData();
+                if ("landscape".equals(action) || "auto".equals(action)) {
+                    setRequestedOrientation("landscape".equals(action)
+                        ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
                 }
-                signInWithGoogle(clientId, reply);
             });
+        if (BuildConfig.GOOGLE_CLIENT_ID.isEmpty()) return;
+        WebViewCompat.addWebMessageListener(browser, "StrandGoogle",
+            Collections.singleton(ORIGIN), (view, message, origin, mainFrame, reply) -> {
+                if (!mainFrame || !isStrandPage(view.getUrl()) || !"sign-in".equals(message.getData())) return;
+                signInWithGoogle(BuildConfig.GOOGLE_CLIENT_ID, reply);
+            });
+    }
+
+    private boolean isStrandPage(String url) {
+        if (url == null) return false;
+        Uri page = Uri.parse(url);
+        String path = page.getEncodedPath();
+        return ORIGIN.equals(page.getScheme() + "://" + page.getEncodedAuthority())
+            && ("/tv/".equals(path) || "/tv/index.html".equals(path));
     }
 
     private void signInWithGoogle(String clientId, JavaScriptReplyProxy reply) {
@@ -177,14 +186,6 @@ public final class TvActivity extends Activity {
 
     private void googleError(JavaScriptReplyProxy reply, String message) {
         reply.postMessage("{\"error\":" + JSONObject.quote(message) + "}");
-    }
-
-    /** Called from the web player's full-screen button. */
-    private final class AppBridge {
-        @JavascriptInterface public void setLandscape(boolean landscape) {
-            runOnUiThread(() -> setRequestedOrientation(landscape
-                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_FULL_USER));
-        }
     }
 
     /** Like YouTube: status and navigation bars in portrait, immersive full screen in landscape. */

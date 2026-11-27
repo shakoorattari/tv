@@ -15,6 +15,7 @@ const firebaseBase = 'https://www.gstatic.com/firebasejs/10.14.1/';
 const firebaseScripts = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js'];
 const address = path => new URL(path, scope).href;
 const settingsKey = address('_offline/settings');
+let activeDownload;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(shellName).then(cache => cache.addAll(assets.map(path => {
@@ -133,9 +134,10 @@ async function save(cache, videos, limit, owner, video) {
   }
   if (!limit) throw Error('Set a storage limit to save videos.');
   const controller = new AbortController();
+  activeDownload = {owner, controller};
   const timeout = setTimeout(() => controller.abort(), 10 * 60_000);
   try {
-    const response = await fetch(url, {credentials: 'omit', signal: controller.signal});
+    const response = await fetch(url, {credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal});
     const type = response.headers.get('content-type')?.split(';')[0];
     const size = Number(response.headers.get('content-length'));
     if (response.status !== 200 || !['video/mp4', 'video/webm'].includes(type) || !Number.isSafeInteger(size) || size <= 0) {
@@ -160,6 +162,7 @@ async function save(cache, videos, limit, owner, video) {
     }}));
   } finally {
     clearTimeout(timeout);
+    activeDownload = undefined;
     controller.abort();
   }
 }
@@ -167,7 +170,8 @@ async function save(cache, videos, limit, owner, video) {
 let queue = Promise.resolve();
 self.addEventListener('message', event => {
   const page = event.source?.url && new URL(event.source.url);
-  if (!event.ports[0] || page?.origin !== scope.origin || !page.pathname.startsWith(scope.pathname)) return;
+  if (!event.ports[0] || event.source?.type !== 'window' || page?.origin !== scope.origin ||
+      ![scope.pathname, new URL('index.html', scope).pathname].includes(page.pathname)) return;
   const reply = event.ports[0];
   const {action, owner, value} = event.data || {};
   if (action === 'firebase') {
@@ -175,6 +179,7 @@ self.addEventListener('message', event => {
       .then(() => reply.postMessage({})));
     return;
   }
+  if (action === 'forget' && activeDownload && activeDownload.owner === owner) activeDownload.controller.abort();
   const operation = queue.then(async () => {
     const cache = await caches.open(mediaName);
     const config = await (await cache.match(settingsKey))?.json() || {limit: 500, auto: true};
@@ -188,6 +193,9 @@ self.addEventListener('message', event => {
     }
     if (action === 'save') await save(cache, videos, config.limit * mb, owner, value);
     if (action === 'remove' && videos.some(item => item.owner === owner && item.key === value)) await cache.delete(value);
+    if (action === 'forget' && typeof owner === 'string' && owner.startsWith('account:')) {
+      await Promise.all(videos.filter(item => item.owner === owner).map(item => cache.delete(item.key)));
+    }
     if (action !== 'list') videos = await records(cache);
     return {config, used: videos.reduce((sum, item) => sum + item.size, 0), videos: videos.filter(item => item.owner === owner)};
   });

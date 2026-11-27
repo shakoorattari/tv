@@ -5,13 +5,22 @@ plugins {
 // Release names and notes live in dist/changelog.json, shared with the web app and update checks.
 def changelog = new groovy.json.JsonSlurper().parse(rootProject.file('../dist/changelog.json'))
 
+// This public OAuth audience is fixed at build time so a page cannot select its own client.
+def googleClientId = System.getenv('STRAND_GOOGLE_CLIENT_ID') ?: ''
+if (googleClientId && !(googleClientId ==~ /[A-Za-z0-9-]+[.]apps[.]googleusercontent[.]com/)) {
+    throw new GradleException('STRAND_GOOGLE_CLIENT_ID must be a Google OAuth Web client ID')
+}
+
 android {
     namespace 'com.shakoorattari.strandtv'
     compileSdk 35
 
+    buildFeatures { buildConfig = true }
+
     defaultConfig {
         applicationId 'com.shakoorattari.strandtv'
         minSdk 23
+        buildConfigField 'String', 'GOOGLE_CLIENT_ID', '"' + googleClientId + '"'
         targetSdk 35
         versionCode Integer.parseInt(System.getenv('STRAND_VERSION_CODE') ?: '1')
         versionName changelog.android[0].version

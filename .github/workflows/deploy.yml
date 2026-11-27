@@ -43,15 +43,12 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           FIREBASE_WEB_CONFIG: ${{ vars.STRAND_FIREBASE_CONFIG }}
-          GOOGLE_WEB_CLIENT_ID: ${{ vars.STRAND_GOOGLE_CLIENT_ID }}
           YOUTUBE_BROWSER_KEY: ${{ vars.STRAND_YOUTUBE_API_KEY }}
         run: |
           node --input-type=module <<'JS'
           import {appendFileSync} from 'node:fs';
           const firebase = process.env.FIREBASE_WEB_CONFIG;
-          const google = process.env.GOOGLE_WEB_CLIENT_ID;
           if (firebase) appendFileSync('_site/config.js', '\nwindow.STRAND_FIREBASE = ' + JSON.stringify(JSON.parse(firebase)) + ';\n');
-          if (google) appendFileSync('_site/config.js', '\nwindow.STRAND_GOOGLE_CLIENT_ID = ' + JSON.stringify(google) + ';\n');
           const key = process.env.YOUTUBE_BROWSER_KEY;
           if (key) appendFileSync('_site/config.js', '\nwindow.STRAND_YOUTUBE_API_KEY = ' + JSON.stringify(key) + ';\n');
           JS
@@ -63,6 +60,8 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build Android TV packages
+        env:
+          STRAND_GOOGLE_CLIENT_ID: ${{ vars.STRAND_GOOGLE_CLIENT_ID }}
         run: gradle --project-dir android :app:assembleDebug :app:assembleRelease :app:lintDebug
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'pull_request'

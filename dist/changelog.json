@@ -6,7 +6,8 @@
       "changes": [
         "Sign in with Google to sync a private library of videos and categories across devices.",
         "Save compatible direct videos for offline playback with a configurable device storage limit.",
-        "Choose offline videos directly from a list, see storage usage at a glance, and use arrow keys to move between controls."
+        "Choose offline videos directly from a list, see storage usage at a glance, and use arrow keys to move between controls.",
+        "Signing out removes the account’s downloaded videos and private library snapshot from that device."
       ]
     },
     {
